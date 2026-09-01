@@ -222,7 +222,6 @@ template {
   -webkit-font-smoothing: antialiased;
 }
 .cardHover,
-.layout > div:first-child:not(.nc),
 #recent-posts .recent-post-item,
 #article-container .shuoshuo-item,
 #aside-content .card-widget,
@@ -238,7 +237,6 @@ template {
   border-radius: 8px;
 }
 .cardHover:hover,
-.layout > div:first-child:not(.nc):hover,
 #recent-posts .recent-post-item:hover,
 #article-container .shuoshuo-item:hover,
 #aside-content .card-widget:hover,
@@ -2470,6 +2468,12 @@ figure.highlight pre .javascript .function {
   display: -ms-flexbox;
   display: box;
   display: flex;
+  -webkit-box-align: start;
+  -moz-box-align: start;
+  -o-box-align: start;
+  -ms-flex-align: start;
+  -webkit-align-items: flex-start;
+  align-items: flex-start;
   -webkit-box-flex: 1;
   -moz-box-flex: 1;
   -o-box-flex: 1;
@@ -2479,75 +2483,6 @@ figure.highlight pre .javascript .function {
   flex: 1 auto;
   margin: 0 auto;
   padding: 40px 15px;
-  max-width: 1200px;
-  width: 100%;
-}
-@media screen and (max-width: 900px) {
-  .layout {
-    -webkit-box-orient: vertical;
-    -moz-box-orient: vertical;
-    -o-box-orient: vertical;
-    -webkit-flex-direction: column;
-    -ms-flex-direction: column;
-    flex-direction: column;
-  }
-}
-@media screen and (max-width: 768px) {
-  .layout {
-    padding: 20px 5px;
-  }
-}
-@media screen and (min-width: 2000px) {
-  .layout {
-    max-width: 60%;
-  }
-}
-.layout > div:first-child:not(.nc) {
-  -webkit-align-self: flex-start;
-  align-self: flex-start;
-  -ms-flex-item-align: start;
-  padding: 50px 40px;
-}
-@media screen and (max-width: 768px) {
-  .layout > div:first-child:not(.nc) {
-    padding: 36px 14px;
-  }
-}
-.layout > div:first-child {
-  width: 74%;
-  -webkit-transition: all 0.3s;
-  -moz-transition: all 0.3s;
-  -o-transition: all 0.3s;
-  -ms-transition: all 0.3s;
-  transition: all 0.3s;
-}
-@media screen and (max-width: 900px) {
-  .layout > div:first-child {
-    width: 100% !important;
-  }
-}
-.layout.hide-aside {
-  max-width: 1000px;
-}
-@media screen and (min-width: 2000px) {
-  .layout.hide-aside {
-    max-width: 1300px;
-  }
-}
-.layout.hide-aside > div {
-  width: 100% !important;
-}
-.apple #page-header.full_page {
-  background-attachment: scroll !important;
-}
-.apple .recent-post-item,
-.apple .avatar-img,
-.apple .flink-item-icon {
-  -webkit-transform: translateZ(0);
-  -moz-transform: translateZ(0);
-  -o-transform: translateZ(0);
-  -ms-transform: translateZ(0);
-  transform: translateZ(0);
 }
 .container .flink {
   margin-bottom: 20px;
@@ -3455,6 +3390,9 @@ figure.highlight pre .javascript .function {
 }
 #aside-content {
   width: 26%;
+  -webkit-align-self: flex-start;
+  align-self: flex-start;
+  -ms-flex-item-align: start;
 }
 @media screen and (min-width: 900px) {
   #aside-content {
