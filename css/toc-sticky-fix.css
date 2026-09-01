@@ -1,6 +1,4 @@
-/* TOC 目录固定修复 */
-/* 关键：不让父容器 overflow: visible，保持浏览器默认的滚动上下文 */
-/* 只需确保 sticky_layout 的 top 值在导航栏收起后正确偏移 */
+/* 目录固定修复：仅调整导航栏收起后的 sticky 位置 */
 #page-header.nav-visible + .layout > #aside-content > .sticky_layout {
   top: 70px;
   transition: top 0.5s;
