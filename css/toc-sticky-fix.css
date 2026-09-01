@@ -1,5 +1,0 @@
-/* 目录固定修复：仅调整导航栏收起后的 sticky 位置 */
-#page-header.nav-visible + .layout > #aside-content > .sticky_layout {
-  top: 70px;
-  transition: top 0.5s;
-}

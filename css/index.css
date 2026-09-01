@@ -2537,6 +2537,14 @@ figure.highlight pre .javascript .function {
 .layout.hide-aside > div {
   width: 100% !important;
 }
+#body-wrap.post > .layout {
+  -webkit-box-align: start;
+  -moz-box-align: start;
+  -o-box-align: start;
+  -ms-flex-align: start;
+  -webkit-align-items: flex-start;
+  align-items: flex-start;
+}
 .apple #page-header.full_page {
   background-attachment: scroll !important;
 }
