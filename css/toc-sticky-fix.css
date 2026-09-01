@@ -1,0 +1,15 @@
+/* 修复父容器 overflow 问题 */
+#aside-content,
+#aside-content .sticky_layout,
+#content-wrap,
+.layout,
+#main {
+  overflow: visible !important;
+}
+
+/* 确保 sticky 生效 */
+#aside-content .sticky_layout {
+  position: sticky !important;
+  top: 30px !important;
+  align-self: flex-start !important;
+}
