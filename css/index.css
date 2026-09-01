@@ -2557,6 +2557,11 @@ figure.highlight pre .javascript .function {
   -ms-transform: translateZ(0);
   transform: translateZ(0);
 }
+#body-wrap.post > .layout > #aside-content {
+  -webkit-align-self: flex-start;
+  align-self: flex-start;
+  -ms-flex-item-align: start;
+}
 .container .flink {
   margin-bottom: 20px;
 }
