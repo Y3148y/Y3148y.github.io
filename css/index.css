@@ -1737,7 +1737,7 @@ canvas:not(#ribbon-canvas),
 }
 body {
   position: relative;
-  overflow-y: scroll;
+  overflow-y: visible;
   min-height: 100%;
   background: var(--global-bg);
   color: var(--font-color);
@@ -2545,6 +2545,28 @@ figure.highlight pre .javascript .function {
   -webkit-align-items: flex-start;
   align-items: flex-start;
 }
+#body-wrap.post > .layout > #aside-content {
+  -webkit-align-self: flex-start;
+  align-self: flex-start;
+  -ms-flex-item-align: start;
+}
+@media screen and (min-width: 900px) {
+  #body-wrap.post > .layout > #aside-content {
+    position: sticky;
+    position: -webkit-sticky;
+    top: 20px;
+    height: fit-content;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+  }
+  #body-wrap.post > .layout > #aside-content .sticky_layout {
+    position: static;
+  }
+  #body-wrap.post > .layout > #aside-content #card-toc .toc-content {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
 .apple #page-header.full_page {
   background-attachment: scroll !important;
 }
@@ -2556,11 +2578,6 @@ figure.highlight pre .javascript .function {
   -o-transform: translateZ(0);
   -ms-transform: translateZ(0);
   transform: translateZ(0);
-}
-#body-wrap.post > .layout > #aside-content {
-  -webkit-align-self: flex-start;
-  align-self: flex-start;
-  -ms-flex-item-align: start;
 }
 .container .flink {
   margin-bottom: 20px;
