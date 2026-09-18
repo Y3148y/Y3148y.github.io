@@ -70,9 +70,27 @@
     中国: ''
   }
 
+  // 简称 -> 全称（用于匹配 PROVINCE_TEXT）
+  var PROVINCE_ALIAS = {
+    北京: '北京市', 天津: '天津市', 上海: '上海市', 重庆: '重庆市',
+    河北: '河北省', 山西: '山西省', 辽宁: '辽宁省', 吉林: '吉林省', 黑龙江: '黑龙江省',
+    江苏: '江苏省', 浙江: '浙江省', 安徽: '安徽省', 福建: '福建省', 江西: '江西省',
+    山东: '山东省', 河南: '河南省', 湖北: '湖北省', 湖南: '湖南省', 广东: '广东省',
+    海南: '海南省', 四川: '四川省', 贵州: '贵州省', 云南: '云南省', 陕西: '陕西省',
+    甘肃: '甘肃省', 青海: '青海省', 台湾: '台湾省',
+    内蒙古: '内蒙古自治区', 广西: '广西壮族自治区', 西藏: '西藏自治区',
+    宁夏: '宁夏回族自治区', 新疆: '新疆维吾尔自治区',
+    香港: '香港特别行政区', 澳门: '澳门特别行政区'
+  }
+
+  function normProvince (name) {
+    if (!name) return ''
+    return PROVINCE_ALIAS[name] || name
+  }
+
   function posDesc (province, nation) {
     if (nation && province && PROVINCE_TEXT[province]) return PROVINCE_TEXT[province]
-    if (nation && NATION_TEXT[nation] !== undefined) return NATION_TEXT[nation]
+    if (nation && NATION_TEXT[nation]) return NATION_TEXT[nation]
     if (nation && nation !== '中国') return '带我去你的国家逛逛吧。'
     if (province) return '带我去你的城市逛逛吧！'
     return '愿你在这里度过愉快的时光。'
@@ -107,65 +125,73 @@
     return fetch(url, { signal: ctrl.signal }).finally(function () { clearTimeout(timer) })
   }
 
-  // 解析各接口返回
+  // 解析各接口返回（并行请求，谁先成功用谁）
   var parsers = [
-    // 1. vore.top（支持 CORS）
+    // 1. vore.top：info1=省份, info2=城市（IPv6 下 ipinfo 无省市区，需从 ipdata/adcode 兜底）
     {
       url: 'https://api.vore.top/api/IPdata',
-      parse: function (res) {
-        return res.then(function (r) { return r.json() }).then(function (d) {
-          if (!d || !d.ipinfo) return null
-          var info = d.ipinfo
-          var ipd = d.ipdata || {}
-          return {
-            nation: info.country && info.country !== '未知' ? info.country : '',
-            province: info.province || (info.cnip ? ipd.info2 : '') || '',
-            city: info.city || (info.cnip ? ipd.info1 : '') || ''
-          }
-        })
+      parse: function (d) {
+        if (!d || !d.ipinfo) return null
+        var info = d.ipinfo
+        var ipd = d.ipdata || {}
+        var adc = d.adcode || {}
+        var province = info.province || ipd.info1 || adc.p || ''
+        var city = info.city || ipd.info2 || adc.c || ''
+        var nation = info.country && info.country !== '未知'
+          ? info.country
+          : (province ? '中国' : '')
+        return { nation: nation, province: normProvince(province), city: city }
       }
     },
-    // 2. useragentinfo
+    // 2. ip-api.com：支持 CORS；regionName 为省简称，city 可能为拼音需过滤
+    {
+      url: 'https://ip-api.com/json/?lang=zh-CN&fields=status,country,regionName,city',
+      parse: function (d) {
+        if (!d || d.status !== 'success') return null
+        var nation = d.country === '中国' ? '中国' : (d.country || '')
+        var city = d.city && /[\u4e00-\u9fa5]/.test(d.city) ? d.city : ''
+        return { nation: nation, province: normProvince(d.regionName), city: city }
+      }
+    },
+    // 3. useragentinfo
     {
       url: 'https://ip.useragentinfo.com/json',
-      parse: function (res) {
-        return res.then(function (r) { return r.json() }).then(function (d) {
-          if (!d || !d.province) return null
-          return { nation: d.country, province: d.province, city: d.city }
-        })
-      }
-    },
-    // 3. pconline（GBK 编码，无 CORS 时会被浏览器拦截，仅作最后兜底）
-    {
-      url: 'https://whois.pconline.com.cn/ipJson.jsp?json=true',
-      parse: function (res) {
-        return res.then(function (r) {
-          return r.arrayBuffer().then(function (buf) {
-            return new TextDecoder('gbk').decode(buf)
-          })
-        }).then(function (text) {
-          var d
-          try { d = JSON.parse(text) } catch (e) { return null }
-          if (!d || !d.pro) return null
-          return { nation: '中国', province: d.pro, city: d.city }
-        })
+      parse: function (d) {
+        if (!d || !d.province) return null
+        return { nation: d.country, province: normProvince(d.province), city: d.city }
       }
     }
   ]
 
-  function tryAt (i) {
-    if (i >= parsers.length) return renderLocal()
-    var p = parsers[i]
-    fetchWithTimeout(p.url, 6000)
-      .then(function (res) {
-        if (!res.ok) throw new Error('status ' + res.status)
-        return p.parse(res)
-      })
-      .then(function (data) {
-        if (data && (data.province || data.nation)) render(data)
-        else tryAt(i + 1)
-      })
-      .catch(function () { tryAt(i + 1) })
+  function runParsers () {
+    var finished = 0
+    var done = false
+    parsers.forEach(function (p) {
+      fetchWithTimeout(p.url, 5000)
+        .then(function (res) {
+          if (!res.ok) throw new Error('status ' + res.status)
+          return res.text().then(function (t) {
+            try { return JSON.parse(t) } catch (e) { throw new Error('bad json') }
+          })
+        })
+        .then(function (d) {
+          return p.parse(d)
+        })
+        .then(function (data) {
+          finished += 1
+          if (done) return
+          if (data && (data.province || data.nation)) {
+            done = true
+            render(data)
+          } else if (finished >= parsers.length) {
+            renderLocal()
+          }
+        })
+        .catch(function () {
+          finished += 1
+          if (finished >= parsers.length && !done) renderLocal()
+        })
+    })
   }
 
   function init () {
@@ -173,9 +199,8 @@
     started = true
     var el = document.getElementById('welcome-info')
     if (!el) return
-    // 先展示纯时间问候，避免空白
     renderLocal()
-    tryAt(0)
+    runParsers()
   }
 
   if (document.readyState === 'loading') {
