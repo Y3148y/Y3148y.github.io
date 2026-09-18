@@ -127,7 +127,20 @@
 
   // 解析各接口返回（并行请求，谁先成功用谁）
   var parsers = [
-    // 1. vore.top：info1=省份, info2=城市（IPv6 下 ipinfo 无省市区，需从 ipdata/adcode 兜底）
+    // 1. myip.ipip.net：返回 data.location = [国家, 省份, 城市, 区县, 运营商]，
+    //    中文、支持 CORS、国内速度快、IPv6 也能识别
+    {
+      url: 'https://myip.ipip.net/json',
+      parse: function (d) {
+        if (!d || d.ret !== 'ok' || !d.data || !Array.isArray(d.data.location)) return null
+        var loc = d.data.location
+        var nation = loc[0] || ''
+        var province = normProvince(loc[1] || '')
+        var city = loc[2] || ''
+        return { nation: nation, province: province, city: city }
+      }
+    },
+    // 2. vore.top：info1=省份, info2=城市（IPv6 下 ipinfo 无省市区，需从 ipdata/adcode 兜底）
     {
       url: 'https://api.vore.top/api/IPdata',
       parse: function (d) {
@@ -143,7 +156,7 @@
         return { nation: nation, province: normProvince(province), city: city }
       }
     },
-    // 2. ip-api.com：支持 CORS；regionName 为省简称，city 可能为拼音需过滤
+    // 3. ip-api.com：支持 CORS；regionName 为省简称，city 可能为拼音需过滤
     {
       url: 'https://ip-api.com/json/?lang=zh-CN&fields=status,country,regionName,city',
       parse: function (d) {
@@ -151,14 +164,6 @@
         var nation = d.country === '中国' ? '中国' : (d.country || '')
         var city = d.city && /[\u4e00-\u9fa5]/.test(d.city) ? d.city : ''
         return { nation: nation, province: normProvince(d.regionName), city: city }
-      }
-    },
-    // 3. useragentinfo
-    {
-      url: 'https://ip.useragentinfo.com/json',
-      parse: function (d) {
-        if (!d || !d.province) return null
-        return { nation: d.country, province: normProvince(d.province), city: d.city }
       }
     }
   ]
