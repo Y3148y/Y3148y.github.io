@@ -23,3 +23,550 @@ html {
   padding: 0 2px;
 }
 
+/* ============ 通用小节标题 ============ */
+.music-section-title {
+  position: relative;
+  margin: 0 0 10px;
+  padding-left: 14px;
+  font-size: 1.35em;
+  line-height: 1.5;
+}
+
+.music-section-title::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 5px;
+  height: 1em;
+  transform: translateY(-50%);
+  border-radius: 3px;
+  background: var(--theme-color);
+}
+
+.music-tip {
+  margin: 0 0 14px;
+  font-size: 0.92em;
+  color: var(--second-color);
+}
+
+.music-tip code {
+  background: rgba(27, 31, 35, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* ============ Music 页：歌单列表 ============ */
+.song-list-wrap {
+  margin-bottom: 24px;
+}
+
+.song-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.song-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--card-border);
+  transition: background 0.2s ease;
+}
+
+.song-item:last-child {
+  border-bottom: 0;
+}
+
+.song-item:hover {
+  background: rgba(73, 177, 245, 0.08);
+}
+
+.song-item.active {
+  background: rgba(73, 177, 245, 0.12);
+  color: var(--theme-color);
+}
+
+.song-item.song-loading {
+  cursor: default;
+  color: var(--second-color);
+  font-style: italic;
+}
+
+.song-no {
+  width: 26px;
+  flex: none;
+  color: var(--second-color);
+  font-size: 0.9em;
+  text-align: right;
+}
+
+.song-item.active .song-no {
+  color: var(--theme-color);
+  font-weight: 700;
+}
+
+.song-name {
+  flex: none;
+  font-size: 1em;
+}
+
+.song-artist {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 0.86em;
+  color: var(--second-color);
+}
+
+.song-arrow {
+  flex: none;
+  color: var(--second-color);
+  font-size: 0.8em;
+}
+
+/* ============ Movies 画册页（art.yml 驱动） ============ */
+.art-section {
+  margin-bottom: 34px;
+}
+
+.art-group-title {
+  position: relative;
+  margin: 0 0 4px;
+  padding-left: 14px;
+  font-size: 1.3em;
+}
+
+.art-group-title::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 1.05em;
+  border-radius: 3px;
+  background: var(--theme-color);
+}
+
+.art-group-sub {
+  margin: 0 0 16px 18px;
+  font-size: 0.82em;
+  color: var(--second-color);
+  letter-spacing: 0.5px;
+}
+
+.art-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+.art-card {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.art-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.14);
+}
+
+.art-card-thumb {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 2;
+  background: var(--card-bg);
+}
+
+.art-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.45s ease;
+}
+
+.art-card:hover .art-card-thumb img {
+  transform: scale(1.06);
+}
+
+.art-index {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+  min-width: 22px;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.74em;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(2px);
+  user-select: none;
+}
+
+.art-card-thumb.art-broken {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--second-color);
+  font-size: 0.85em;
+}
+
+.art-card-thumb.art-broken::before {
+  content: '图片加载失败';
+}
+
+.art-card-info {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.art-card-thumb {
+  cursor: zoom-in;
+}
+
+.art-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 14, 0.86);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.art-viewer.artview-open {
+  opacity: 1;
+}
+
+.art-viewer-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  cursor: zoom-out;
+}
+
+.art-viewer-img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  transition: transform 0.2s ease;
+}
+
+.art-viewer-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.art-viewer-close::before {
+  content: '\00d7';
+}
+
+.art-viewer-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+body.artview-lock {
+  overflow: hidden;
+}
+
+.art-viewer-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 44px 28px 22px;
+  color: #fff;
+  text-align: left;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.3) 55%, transparent);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition-delay: 0.1s;
+}
+
+.art-viewer.artview-open .art-viewer-caption {
+  opacity: 1;
+  transform: none;
+}
+
+.art-viewer-caption-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.art-viewer-caption-meta {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  opacity: 0.75;
+  letter-spacing: 0.3px;
+}
+
+.art-viewer-caption-desc {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  opacity: 0.95;
+  max-width: 640px;
+}
+
+.art-viewer-empty {
+  display: none;
+}
+
+@media screen and (max-width: 640px) {
+  .art-viewer-caption {
+    padding: 32px 18px 16px;
+  }
+
+  .art-viewer-caption-title {
+    font-size: 1.05rem;
+  }
+
+  .art-viewer-caption-desc {
+    font-size: 0.82rem;
+  }
+}
+
+.art-card-title {
+  font-size: 1.02em;
+  font-weight: 600;
+  color: var(--font-color);
+}
+
+.art-card-meta {
+  font-size: 0.82em;
+  color: var(--second-color);
+}
+
+@media (max-width: 768px) {
+  .art-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+}
+
+/* ============ 全站底部悬浮播放条 ============ */
+/* 给页面底部留出播放条高度，防止内容被遮挡 */
+body {
+  padding-bottom: 44px;
+}
+
+/* 右侧悬浮按钮上移，避免被播放条盖住 */
+#rightside {
+  bottom: 54px !important;
+}
+
+/* live2d 小人也抬到播放条上方 */
+#live2d-widget {
+  bottom: 44px !important;
+}
+
+.gp-player {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 14px;
+  z-index: 1200;
+  max-width: min(560px, 94vw);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: color-mix(in srgb, var(--card-bg) 62%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  color: var(--font-color);
+}
+
+.gp-player .gp-text {
+  flex: 1;
+  min-width: 0;
+  max-width: 260px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.gp-player .gp-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gp-player .gp-artist {
+  font-size: 11px;
+  color: var(--second-color);
+}
+
+.gp-player .gp-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gp-player .gp-btn {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--font-color);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: color 0.2s, background 0.2s;
+}
+
+.gp-player .gp-btn:hover {
+  color: var(--theme-color);
+}
+
+.gp-player .gp-btn.gp-play {
+  background: #1f2937;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.gp-player .gp-btn.gp-play:hover {
+  background: #374151;
+  color: #fff;
+}
+
+[data-mode='dark'] .gp-player .gp-btn.gp-play {
+  background: #fff;
+  color: #1f2937;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.45);
+}
+
+[data-mode='dark'] .gp-player .gp-btn.gp-play:hover {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.gp-player .gp-volwrap {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+
+.gp-player .gp-vol {
+  font-size: 13px;
+}
+
+.gp-player .gp-volpop {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.gp-player .gp-volpop.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.gp-player .gp-volbar {
+  position: relative;
+  width: 5px;
+  height: 56px;
+  border-radius: 2.5px;
+  background: rgba(128, 128, 128, 0.25);
+  cursor: pointer;
+}
+
+.gp-player .gp-volfill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 2.5px;
+  background: var(--theme-color);
+}
+
+.gp-player .gp-volnum {
+  font-size: 10px;
+  color: var(--second-color);
+}
+
+@media (max-width: 600px) {
+  .gp-player {
+    height: auto;
+    padding: 6px 12px;
+    bottom: 10px;
+    gap: 8px;
+  }
+  .gp-player .gp-text {
+    max-width: 40vw;
+  }
+  .gp-player .gp-artist {
+    display: none;
+  }
+}
