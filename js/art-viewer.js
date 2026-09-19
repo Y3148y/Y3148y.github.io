@@ -1,4 +1,4 @@
-/* 画册高清大图查看器：点击 .art-card-thumb 的图片弹出原图，可随 PJAX 翻页生效 */
+/* 鐢诲唽楂樻竻澶у浘鏌ョ湅鍣細鐐瑰嚮 .art-card-thumb 鐨勫浘鐗囧脊鍑哄師鍥撅紝鍙殢 PJAX 缈婚〉鐢熸晥 */
 (function () {
   function bindEsc (viewer, close) {
     var esc = function (e) { if (e.key === 'Escape') close() }
@@ -56,9 +56,12 @@
 
   document.addEventListener('click', function (e) {
     var t = e.target
-    if (t && t.tagName === 'IMG' && !t.closest('.art-viewer') && t.closest('.art-card-thumb')) {
-      open(t)
-    }
+    if (!t || !t.closest) return
+    if (t.closest('.art-viewer')) return
+    var thumb = t.closest('.art-card-thumb')
+    if (!thumb) return
+    var img = thumb.querySelector('img')
+    if (img) open(img)
   })
 
   document.addEventListener('pjax:start', function () {
