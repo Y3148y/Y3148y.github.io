@@ -1,0 +1,1012 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>给 Hexo 博客加一个本地写作后台 | 听雨</title><meta name="author" content="听雨"><meta name="copyright" content="听雨"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="前言写博客这件事，Hexo 的门槛其实不在「写」，而在「发」。 文章是 Markdown，纯文本记事本就能写。但每次写完想上线，得打开终端、敲 hexo clean、等构建、再敲 hexo deploy。构建要十几秒，推送可能因为网络抖动失败，失败了还得看着 fatal: unable to access ... 猜原因。写作是连续的，发布是离散的，中间这段割裂感才是真正的成本。 所以我给自己的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="给 Hexo 博客加一个本地写作后台">
+<meta property="og:url" content="https://y3148y.github.io/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/index.html">
+<meta property="og:site_name" content="听雨">
+<meta property="og:description" content="前言写博客这件事，Hexo 的门槛其实不在「写」，而在「发」。 文章是 Markdown，纯文本记事本就能写。但每次写完想上线，得打开终端、敲 hexo clean、等构建、再敲 hexo deploy。构建要十几秒，推送可能因为网络抖动失败，失败了还得看着 fatal: unable to access ... 猜原因。写作是连续的，发布是离散的，中间这段割裂感才是真正的成本。 所以我给自己的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://y3148y.github.io/img/art/monet-waterlilies-sunset.jpg">
+<meta property="article:published_time" content="2026-10-18T14:30:00.000Z">
+<meta property="article:modified_time" content="2026-10-20T09:12:23.432Z">
+<meta property="article:author" content="听雨">
+<meta property="article:tag" content="Hexo">
+<meta property="article:tag" content="Node.js">
+<meta property="article:tag" content="博客后台">
+<meta property="article:tag" content="效率工具">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://y3148y.github.io/img/art/monet-waterlilies-sunset.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "给 Hexo 博客加一个本地写作后台",
+  "url": "https://y3148y.github.io/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/",
+  "image": "https://y3148y.github.io/img/art/monet-waterlilies-sunset.jpg",
+  "datePublished": "2026-10-18T14:30:00.000Z",
+  "dateModified": "2026-10-20T09:12:23.432Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "听雨",
+      "url": "https://Y3148y.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/cat.png"><link rel="canonical" href="https://y3148y.github.io/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.5"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '给 Hexo 博客加一个本地写作后台',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><link rel="stylesheet" href="/css/painting.css"><link rel="stylesheet" href="/css/transition.css?v=1"><meta name="generator" content="Hexo 8.1.2"></head><body><script>window.paceOptions = {
+  restartOnPushState: false
+}
+
+btf.addGlobalFn('pjaxSend', () => {
+  Pace.restart()
+}, 'pace_restart')
+
+</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/themes/blue/pace-theme-minimal.min.css"/><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><div class="bg-animation" id="web_bg" style="background-image: url(/img/sea.gif);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">21</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">33</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/art/monet-waterlilies-sunset.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">听雨</span></a><a class="nav-page-title" href="/"><span class="site-name">给 Hexo 博客加一个本地写作后台</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">给 Hexo 博客加一个本地写作后台</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-18T14:30:00.000Z" title="发表于 2026-10-18 14:30:00">2026-10-18</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-20T09:12:23.432Z" title="更新于 2026-10-20 09:12:23">2026-10-20</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E5%AD%A6%E4%B9%A0/">技术学习</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><!-- toc -->
+<h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>写博客这件事，Hexo 的门槛其实不在「写」，而在「发」。</p>
+<p>文章是 Markdown，纯文本记事本就能写。但每次写完想上线，得打开终端、敲 <code>hexo clean</code>、等构建、再敲 <code>hexo deploy</code>。构建要十几秒，推送可能因为网络抖动失败，失败了还得看着 <code>fatal: unable to access ...</code> 猜原因。<strong>写作是连续的，发布是离散的</strong>，中间这段割裂感才是真正的成本。</p>
+<p>所以我给自己的博客加了一个本地后台：浏览器里写，预览，保存，点一下按钮直接上线。</p>
+<p>这篇文章记录这次实现的全过程——架构怎么定的、代码怎么组织的，以及<strong>踩了哪些坑</strong>。后者占的篇幅可能比前者还多，因为那几个坑里有几个挺典型的。</p>
+<h1 id="整体架构"><a href="#整体架构" class="headerlink" title="整体架构"></a>整体架构</h1><p>先说清楚边界。这个后台不是 CMS，不是网站的一部分，它是一个<strong>只在本机运行的 Node 进程</strong>，通过 HTTP 提供一个网页界面，最终仍然产出标准的 Markdown 文件交给 Hexo：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">浏览器  http://127.0.0.1:4001/admin/</span><br><span class="line">   │  JSON over HTTP</span><br><span class="line">   ▼</span><br><span class="line">┌─────────────────────────────────────────────┐</span><br><span class="line">│ admin/server.js      node:http，无框架       │</span><br><span class="line">│  ├ auth      scrypt 口令 + HMAC 签名会话     │</span><br><span class="line">│  ├ posts     文章增删改查                    │</span><br><span class="line">│  ├ frontmatter  YAML 解析与序列化（关键）    │</span><br><span class="line">│  ├ media     图片上传（魔数校验）            │</span><br><span class="line">│  ├ snapshot  历史版本与回滚                  │</span><br><span class="line">│  ├ deploy    构建/部署子进程                 │</span><br><span class="line">│  └ scheduler 定时发布                        │</span><br><span class="line">└─────────────────────────────────────────────┘</span><br><span class="line">   │ 写入</span><br><span class="line">   ▼</span><br><span class="line">source/_posts/*.md      ← 唯一的事实来源</span><br><span class="line">   │</span><br><span class="line">   ├─ 模式1：hexo clean/generate/deploy（本机直接上线）</span><br><span class="line">   └─ 模式3：git push → GitHub Actions（云端构建）</span><br><span class="line">              │</span><br><span class="line">              ▼</span><br><span class="line">        Y3148y.github.io  ← GitHub Pages 托管</span><br></pre></td></tr></table></figure>
+
+<p>有三条约束贯穿整个设计：</p>
+<p><strong>1. 零新增运行时依赖。</strong></p>
+<p>写完之后对比 <code>package.json</code>，17 个依赖一个没动，只多了一条 npm script：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;scripts&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;build&quot;</span><span class="punctuation">:</span> <span class="string">&quot;hexo generate&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;clean&quot;</span><span class="punctuation">:</span> <span class="string">&quot;hexo clean&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;deploy&quot;</span><span class="punctuation">:</span> <span class="string">&quot;hexo deploy&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;server&quot;</span><span class="punctuation">:</span> <span class="string">&quot;hexo server&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;admin&quot;</span><span class="punctuation">:</span> <span class="string">&quot;node admin/server.js&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>这一点不是洁癖。个人博客的 <code>node_modules</code> 越大，<code>npm install</code> 越慢、CI 缓存越容易失效、依赖冲突的排查面越宽。而一个管理界面真的需要什么？HTTP 服务 Node 内置就有，密码哈希 <code>node:crypto</code> 有，图片上传 <code>FileReader</code> 前端就能转 base64。真正需要的 <code>js-yaml</code> 是 Hexo 自己的传递依赖，直接 require 就行。</p>
+<p><strong>2. 只监听本机。</strong></p>
+<p>默认 <code>127.0.0.1</code>，不对局域网暴露。个人写作工具的威胁模型很简单：别人碰不到你的机器就行。</p>
+<p><strong>3. 与现有构建链路同源。</strong></p>
+<p>后台不重新实现「构建站点」，它调用的还是 <code>hexo clean / generate / deploy</code>。这样保证了「后台里看到的」和「线上呈现的」不会出现两套逻辑。</p>
+<p>代码规模：</p>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>行数</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>public/app.js</code></td>
+<td>784</td>
+<td>前端全部逻辑（无框架、无构建）</td>
+</tr>
+<tr>
+<td><code>lib/deploy.js</code></td>
+<td>321</td>
+<td>构建、部署、凭据预检、代理降级</td>
+</tr>
+<tr>
+<td><code>public/style.css</code></td>
+<td>294</td>
+<td>样式</td>
+</tr>
+<tr>
+<td><code>server.js</code></td>
+<td>247</td>
+<td>HTTP 路由分发</td>
+</tr>
+<tr>
+<td><code>lib/frontmatter.js</code></td>
+<td>163</td>
+<td>YAML 解析与序列化</td>
+</tr>
+<tr>
+<td><code>lib/posts.js</code></td>
+<td>143</td>
+<td>文章 CRUD</td>
+</tr>
+<tr>
+<td><code>lib/auth.js</code></td>
+<td>126</td>
+<td>鉴权与会话</td>
+</tr>
+<tr>
+<td>其余 9 个</td>
+<td>~660</td>
+<td>工具、图片、快照、定时器等</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td><strong>2844</strong></td>
+<td></td>
+</tr>
+</tbody></table>
+<h1 id="为什么不用现成方案"><a href="#为什么不用现成方案" class="headerlink" title="为什么不用现成方案"></a>为什么不用现成方案</h1><p>社区确实有个 <code>hexo-admin</code>，看起来正好干这件事。但我去看了它的依赖：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">&quot;dependencies&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;hexo-front-matter&quot;</span><span class="punctuation">:</span> <span class="string">&quot;^0.2.2&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;hexo-fs&quot;</span><span class="punctuation">:</span> <span class="string">&quot;^0.1.3&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;hexo-util&quot;</span><span class="punctuation">:</span> <span class="string">&quot;^0.1.6&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;bcrypt-nodejs&quot;</span><span class="punctuation">:</span> <span class="string">&quot;^0.0.3&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;browserify&quot;</span><span class="punctuation">:</span> <span class="string">&quot;^11.2.0&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>hexo-fs@0.1</code>、<code>hexo-util@0.1</code> 是 Hexo <strong>3 时代</strong>的版本号，而本项目用的是 <code>hexo-fs@5</code> &#x2F; <code>hexo-util@4</code>。主版本号都不在同一个时代，装上去大概率跑不起来。它的最后更新停在 2022 年。</p>
+<p>「装个现成的」省下的时间，远少于「把一个腐朽的依赖树从零剥离」花的时间。于是决定自己写。</p>
+<h1 id="第一步：frontmatter-的序列化"><a href="#第一步：frontmatter-的序列化" class="headerlink" title="第一步：frontmatter 的序列化"></a>第一步：frontmatter 的序列化</h1><p>这是整个后台里最容易出错、也最有价值的一块。</p>
+<h2 id="YAML-时间戳的-UTC-陷阱"><a href="#YAML-时间戳的-UTC-陷阱" class="headerlink" title="YAML 时间戳的 UTC 陷阱"></a>YAML 时间戳的 UTC 陷阱</h2><p>先看一个看起来人畜无害的 frontmatter：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">title:</span> <span class="string">深入剖析</span> <span class="string">Redis</span> <span class="string">底层原理</span></span><br><span class="line"><span class="attr">date:</span> <span class="number">2026-09-01 12:00:00</span></span><br><span class="line"><span class="meta">---</span></span><br></pre></td></tr></table></figure>
+
+<p>当 <code>js-yaml</code> 解析这一行时，它会<strong>识别出这是 YAML 的 timestamp 类型</strong>，返回一个 JavaScript <code>Date</code> 对象，而这个对象按 <strong>UTC</strong> 解释：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">yaml.<span class="title function_">load</span>(<span class="string">&#x27;date: 2026-09-01 12:00:00&#x27;</span>).<span class="property">date</span></span><br><span class="line"><span class="comment">// → 2026-09-01T12:00:00.000Z</span></span><br></pre></td></tr></table></figure>
+
+<p>注意那个 <code>Z</code>。它是 UTC，不是东八区。</p>
+<p>那么问题来了——如果我保存时写成带引号的形式：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">date:</span> <span class="string">&#x27;2026-09-01 12:00:00&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>再解析回来得到的就是<strong>字符串</strong> <code>&quot;2026-09-01 12:00:00&quot;</code>，而不是 <code>Date</code>。而 Hexo 对这两种类型的时间处理是不同的：<strong>字符串走本地时区解析，Date 对象直接用</strong>。这意味着一次「 innocuous」的保存，可能把文章的发布时间挪动几个小时，进而改变它在本月归档里的排序位置。</p>
+<p>这不是理论风险。我在 <code>lib/frontmatter.js</code> 里对此的处理是——不管传进来的是 <code>Date</code> 还是字符串，出口永远统一成不带引号的 UTC 时间戳：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// admin/lib/frontmatter.js:153</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">stringify</span>(<span class="params">data, content</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> src = &#123; ...(data || &#123;&#125;) &#125;;</span><br><span class="line">  <span class="comment">// 无论调用方传的是 Date 还是字符串，date 一律输出为未加引号的 UTC 时间戳，</span></span><br><span class="line">  <span class="comment">// 否则 js-yaml 会把它读成字符串，Hexo 的时间语义随之改变。</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="string">&#x27;date&#x27;</span> <span class="keyword">in</span> src) &#123;</span><br><span class="line">    <span class="keyword">const</span> d = <span class="title function_">toDate</span>(src.<span class="property">date</span>);</span><br><span class="line">    <span class="keyword">if</span> (d) src.<span class="property">date</span> = d;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">delete</span> src.<span class="property">date</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="为什么不用-yaml-dump"><a href="#为什么不用-yaml-dump" class="headerlink" title="为什么不用 yaml.dump"></a>为什么不用 yaml.dump</h2><p>最直接的想法是 <code>yaml.dump(data)</code>。但它不可控：会把字符串形式的日期加引号（正是要避免的）、键顺序随对象插入顺序变化、<code>null</code> 和空数组的表示方式也不符合我想要的格式。</p>
+<p>所以写了一个专用的序列化器，163 行，规则完全自己定：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 判断一个字符串能否「裸着」放进 YAML</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">isPlainSafe</span>(<span class="params">s</span>) &#123;</span><br><span class="line">  <span class="keyword">if</span> (s === <span class="string">&#x27;&#x27;</span>) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^\s|\s$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;                      <span class="comment">// 前后空白</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/[\x00-\x1f\x7f]/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;              <span class="comment">// 控制字符</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^[-?:,[\]&#123;&#125;#&amp;*!|&gt;&#x27;&quot;%@`=]/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;      <span class="comment">// 起始指示符</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/:\s/</span>.<span class="title function_">test</span>(s) || <span class="regexp">/\s#/</span>.<span class="title function_">test</span>(s) || <span class="regexp">/:$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^(true|false|null|yes|no|on|off|~)$/i</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^[-+]?(\d[\d_]*(\.[\d_]*)?([eE][-+]?\d+)?|\.\d+)$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^0[xXbBoO][0-9a-fA-F_]+$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="comment">// 纯日期样式的字符串会被 js-yaml 反序列化成 Date，必须加引号</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^\d&#123;4&#125;-\d&#123;1,2&#125;-\d&#123;1,2&#125;([T ].*)?$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>每一行都对应一类真实会咬人的情况：</p>
+<ul>
+<li>标题以 <code>#</code> 开头 → 会被当成注释</li>
+<li>标签写成 <code>true</code> &#x2F; <code>123</code> → 会被反序列化成布尔或数字</li>
+<li>某个封面路径恰好写成 <code>2026-01-01</code> → 会被反序列化成 Date</li>
+</ul>
+<p>最后一条尤其隐蔽：它本来是个合法的图片路径，却因为长得像日期而类型漂移。所以规则是<strong>宁可多加引号，绝不产生类型歧义</strong>。</p>
+<h2 id="往返无损怎么验证"><a href="#往返无损怎么验证" class="headerlink" title="往返无损怎么验证"></a>往返无损怎么验证</h2><p>「保存后再打开内容没变」听起来是废话，但在这个场景下它是个真问题：格式归一（BOM、尾部空行、引号）会造成字节不同，而语义必须完全一致。</p>
+<p>我的验证方式是逐篇跑三个判据：</p>
+<ol>
+<li>frontmatter 解析后深度相等（忽略键顺序）</li>
+<li>正文相等（归一化 BOM 与尾部空白后）</li>
+<li><strong>幂等</strong>：再存一次，输出必须逐字节相同</li>
+</ol>
+<p>第三条最关键。如果序列化不幂等，意味着每点一次保存文件就变一次，git 历史会被垃圾提交淹没。</p>
+<p>最初有 5 篇文章没能通过第三项，查下来是围栏后空行和文末换行的处理不一致——有的文章围栏后有空行、有的没有。统一成「围栏后恒定一个空行、文末恒定一个换行」后，14 篇文章全部通过。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 围栏后恒定一个空行、文末恒定一个换行：既符合常见 Markdown 排版，也让序列化完全幂等</span></span><br><span class="line"><span class="keyword">const</span> body = <span class="title class_">String</span>(content == <span class="literal">null</span> ? <span class="string">&#x27;&#x27;</span> : content).<span class="title function_">replace</span>(<span class="regexp">/\s+$/</span>, <span class="string">&#x27;&#x27;</span>) + <span class="string">&#x27;\n&#x27;</span>;</span><br><span class="line"><span class="keyword">return</span> <span class="string">&#x27;---\n&#x27;</span> + yamlPart + <span class="string">&#x27;---\n\n&#x27;</span> + body;</span><br></pre></td></tr></table></figure>
+
+<h1 id="第二步：HTTP-服务与鉴权"><a href="#第二步：HTTP-服务与鉴权" class="headerlink" title="第二步：HTTP 服务与鉴权"></a>第二步：HTTP 服务与鉴权</h1><h2 id="不用-Express"><a href="#不用-Express" class="headerlink" title="不用 Express"></a>不用 Express</h2><p>一个只有 19 条路由、只跑在本机的工具，引 Express 意味着引入 60 多个传递依赖。<code>node:http</code> 写一个路由分发器并不复杂，而且我对路由表的掌控度更高。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// admin/server.js</span></span><br><span class="line"><span class="keyword">const</span> routes = [];</span><br><span class="line"><span class="keyword">function</span> <span class="title function_">route</span>(<span class="params">method, pattern, handler, opts = &#123;&#125;</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> keys = [];</span><br><span class="line">  <span class="keyword">const</span> regex = <span class="keyword">new</span> <span class="title class_">RegExp</span>(</span><br><span class="line">    <span class="string">&#x27;^&#x27;</span> + pattern.<span class="title function_">replace</span>(<span class="regexp">/:([A-Za-z_]+)/g</span>, <span class="function">(<span class="params">_, k</span>) =&gt;</span> &#123; keys.<span class="title function_">push</span>(k); <span class="keyword">return</span> <span class="string">&#x27;([^/]+)&#x27;</span>; &#125;) + <span class="string">&#x27;$&#x27;</span></span><br><span class="line">  );</span><br><span class="line">  routes.<span class="title function_">push</span>(&#123; method, regex, keys, handler, <span class="attr">auth</span>: opts.<span class="property">auth</span> !== <span class="literal">false</span> &#125;);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="title function_">route</span>(<span class="string">&#x27;GET&#x27;</span>, <span class="string">&#x27;/api/posts&#x27;</span>, <span class="title function_">async</span> () =&gt; (&#123; <span class="attr">posts</span>: posts.<span class="title function_">list</span>() &#125;));</span><br><span class="line"><span class="title function_">route</span>(<span class="string">&#x27;PUT&#x27;</span>, <span class="string">&#x27;/api/posts/:slug&#x27;</span>, <span class="title function_">async</span> (ctx) =&gt; &#123; <span class="comment">/* ... */</span> &#125;);</span><br></pre></td></tr></table></figure>
+
+<h2 id="口令与会话"><a href="#口令与会话" class="headerlink" title="口令与会话"></a>口令与会话</h2><p>口令用 <code>scrypt</code> 哈希存储，比 PBKDF2 更抗 GPU 破解：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> <span class="variable constant_">SCRYPT</span> = &#123; <span class="attr">N</span>: <span class="number">16384</span>, <span class="attr">r</span>: <span class="number">8</span>, <span class="attr">p</span>: <span class="number">1</span>, <span class="attr">keylen</span>: <span class="number">64</span> &#125;;</span><br><span class="line"></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">hashPassword</span>(<span class="params">password, salt</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> useSalt = salt || crypto.<span class="title function_">randomBytes</span>(<span class="number">16</span>).<span class="title function_">toString</span>(<span class="string">&#x27;hex&#x27;</span>);</span><br><span class="line">  <span class="keyword">const</span> hash = crypto</span><br><span class="line">    .<span class="title function_">scryptSync</span>(<span class="title class_">String</span>(password), useSalt, <span class="variable constant_">SCRYPT</span>.<span class="property">keylen</span>, &#123; <span class="attr">N</span>: <span class="variable constant_">SCRYPT</span>.<span class="property">N</span>, <span class="attr">r</span>: <span class="variable constant_">SCRYPT</span>.<span class="property">r</span>, <span class="attr">p</span>: <span class="variable constant_">SCRYPT</span>.<span class="property">p</span> &#125;)</span><br><span class="line">    .<span class="title function_">toString</span>(<span class="string">&#x27;hex&#x27;</span>);</span><br><span class="line">  <span class="keyword">return</span> &#123; <span class="attr">algo</span>: <span class="string">&#x27;scrypt&#x27;</span>, <span class="attr">N</span>: <span class="variable constant_">SCRYPT</span>.<span class="property">N</span>, <span class="attr">r</span>: <span class="variable constant_">SCRYPT</span>.<span class="property">r</span>, <span class="attr">p</span>: <span class="variable constant_">SCRYPT</span>.<span class="property">p</span>, <span class="attr">salt</span>: useSalt, hash &#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>会话用 HMAC 签名的自包含 token，不存服务端会话表。校验时必须用 <code>timingSafeEqual</code> 而不是 <code>===</code>，否则存在时序侧信道：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">unsign</span>(<span class="params">token</span>) &#123;</span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> token !== <span class="string">&#x27;string&#x27;</span> || !token.<span class="title function_">includes</span>(<span class="string">&#x27;.&#x27;</span>)) <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">  <span class="keyword">const</span> idx = token.<span class="title function_">lastIndexOf</span>(<span class="string">&#x27;.&#x27;</span>);</span><br><span class="line">  <span class="keyword">const</span> body = token.<span class="title function_">slice</span>(<span class="number">0</span>, idx);</span><br><span class="line">  <span class="keyword">const</span> mac = token.<span class="title function_">slice</span>(idx + <span class="number">1</span>);</span><br><span class="line">  <span class="keyword">const</span> expect = crypto.<span class="title function_">createHmac</span>(<span class="string">&#x27;sha256&#x27;</span>, <span class="title function_">getSecret</span>()).<span class="title function_">update</span>(body).<span class="title function_">digest</span>(<span class="string">&#x27;base64url&#x27;</span>);</span><br><span class="line">  <span class="keyword">const</span> a = <span class="title class_">Buffer</span>.<span class="title function_">from</span>(mac);</span><br><span class="line">  <span class="keyword">const</span> b = <span class="title class_">Buffer</span>.<span class="title function_">from</span>(expect);</span><br><span class="line">  <span class="comment">// 长度不等时 timingSafeEqual 会抛异常，长度相同才逐字节比较</span></span><br><span class="line">  <span class="keyword">if</span> (a.<span class="property">length</span> !== b.<span class="property">length</span> || !crypto.<span class="title function_">timingSafeEqual</span>(a, b)) <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>CSRF 防护用了两层：Cookie 带 <code>SameSite=Strict</code>，同时要求所有变更请求带一个自定义头 <code>X-Admin-Request: 1</code>。跨站表单发不出自定义头，攻击面就被掐断了。</p>
+<h1 id="第三步：编辑器与预览"><a href="#第三步：编辑器与预览" class="headerlink" title="第三步：编辑器与预览"></a>第三步：编辑器与预览</h1><h2 id="预览的难点在-Hexo-专有标签"><a href="#预览的难点在-Hexo-专有标签" class="headerlink" title="预览的难点在 Hexo 专有标签"></a>预览的难点在 Hexo 专有标签</h2><p>标准 Markdown 用 <code>marked</code> 渲染没问题，但 Hexo 的文章里还有 <code>&#123;% %&#125;</code> 标签：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">&#123;% mermaid %&#125;graph TD; A--&gt;B&#123;% endmermaid %&#125;</span><br><span class="line">&#123;% post_link 基于GithubPage和hexo的简单个人网站搭建教程 %&#125;</span><br><span class="line">&#123;% art_gallery %&#125;</span><br></pre></td></tr></table></figure>
+
+<p>浏览器里没有这些标签的语义。我的处理是<strong>先做预处理、把标签替换成占位符，渲染后再还原</strong>：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// &#123;% mermaid %&#125; → 标准 mermaid 代码块，好让渲染器统一处理</span></span><br><span class="line">out = out.<span class="title function_">replace</span>(<span class="regexp">/\&#123;%\s*mermaid\s*%\&#125;([\s\S]*?)\&#123;%\s*endmermaid\s*%\&#125;/g</span>, <span class="function">(<span class="params">_, inner</span>) =&gt;</span></span><br><span class="line">  <span class="string">&#x27;```mermaid\n&#x27;</span> + inner.<span class="title function_">trim</span>() + <span class="string">&#x27;\n```&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 其他标签渲染成一个说明卡片，明确告诉读者「这在构建时才会生效」</span></span><br><span class="line">out = out.<span class="title function_">replace</span>(<span class="regexp">/\&#123;%\s*post_link\s+([^%]+?)\s*%\&#125;/g</span>, <span class="function">(<span class="params">_, title</span>) =&gt;</span></span><br><span class="line">  <span class="title function_">hold</span>(<span class="string">`&lt;span class=&quot;hexo-tag&quot;&gt;&lt;b&gt;&#123;% post_link %&#125;&lt;/b&gt; <span class="subst">$&#123;escapeHtml(title.trim())&#125;</span>&lt;/span&gt;`</span>));</span><br></pre></td></tr></table></figure>
+
+<p>代码高亮和 mermaid 都走 CDN <strong>按需加载</strong>——只有文章里真的出现了对应代码块才加载。离线时优雅降级：代码块照样显示，只是不带颜色。</p>
+<h2 id="视图切换踩了个严重的坑"><a href="#视图切换踩了个严重的坑" class="headerlink" title="视图切换踩了个严重的坑"></a>视图切换踩了个严重的坑</h2><p>最初有三种视图：编辑、分屏、预览。实现上，预览模式直接把编辑器容器 <code>display: none</code>：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误示范</span></span><br><span class="line"><span class="keyword">if</span> (state.<span class="property">view</span> === <span class="string">&#x27;preview&#x27;</span>) &#123;</span><br><span class="line">  panes.<span class="title function_">querySelector</span>(<span class="string">&#x27;.editor-pane&#x27;</span>).<span class="property">style</span>.<span class="property">display</span> = <span class="string">&#x27;none&#x27;</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>而「编辑 &#x2F; 分屏 &#x2F; 预览」这三个切换按钮，<strong>正好就在被隐藏的那个容器里</strong>。</p>
+<p>结果就是：点一次预览，切换按钮自己消失了，再也切不回来。更糟的是状态还写进了 <code>localStorage</code>，刷新页面依然锁死在预览态，除非手动清浏览器数据。</p>
+<p>用户反馈的现象是「点预览会跳走」「新建文章后不能写正文」——其实是同一个 bug：<strong>预览态下 textarea 被隐藏，而 <code>loadPost()</code> 末尾也会调用 <code>applyView()</code>，于是每次新建文章都把输入框藏起来。</strong></p>
+<p>修复有两层。结构上把切换控件移到顶栏，永远可见：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;segmented&quot;</span> <span class="attr">id</span>=<span class="string">&quot;view-switch&quot;</span> <span class="attr">role</span>=<span class="string">&quot;group&quot;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">button</span> <span class="attr">id</span>=<span class="string">&quot;btn-view-edit&quot;</span>&gt;</span>编辑<span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">button</span> <span class="attr">id</span>=<span class="string">&quot;btn-view-split&quot;</span>&gt;</span>分屏<span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">button</span> <span class="attr">id</span>=<span class="string">&quot;btn-view-preview&quot;</span>&gt;</span>预览<span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p>逻辑上给 localStorage 读出的值加合法性校验，防止历史脏数据把人困在无法退出的状态：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">applyView</span>(<span class="params"></span>) &#123;</span><br><span class="line">  <span class="comment">// 兜底：localStorage 里可能有旧版本写入的非法值（如 &#x27;solo&#x27;）</span></span><br><span class="line">  <span class="keyword">if</span> (!<span class="variable constant_">VIEW_MODES</span>.<span class="title function_">includes</span>(state.<span class="property">view</span>)) state.<span class="property">view</span> = <span class="string">&#x27;split&#x27;</span>;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>顺带修了一个 CSS 层面的 bug：<code>.editor &#123; display: grid &#125;</code> 会覆盖浏览器默认的 <code>[hidden] &#123; display: none &#125;</code>，导致 JS 里设置 <code>el.hidden = true</code> 根本不生效。加了一条全局规则才真正修好：</p>
+<figure class="highlight css"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* .editor / .empty 都带 display:grid，会盖掉浏览器默认的 [hidden]&#123;display:none&#125;，</span></span><br><span class="line"><span class="comment">   导致 JS 里的 show/hide 完全失效（空状态与编辑器同时显示）。 */</span></span><br><span class="line"><span class="selector-attr">[hidden]</span> &#123; <span class="attribute">display</span>: none <span class="meta">!important</span>; &#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="第四步：历史版本与定时发布"><a href="#第四步：历史版本与定时发布" class="headerlink" title="第四步：历史版本与定时发布"></a>第四步：历史版本与定时发布</h1><p><strong>历史版本</strong>是在每次保存和删除前把文件的<strong>完整原文</strong>存一份快照。这里存原文而不是只存正文或字段快照，是为了在 frontmatter 也被改错时依然能完整回退。</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">save</span>(<span class="params">slug, raw, note = <span class="string">&#x27;&#x27;</span></span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> record = &#123;</span><br><span class="line">    <span class="attr">id</span>: <span class="title function_">timestampId</span>(),</span><br><span class="line">    slug,</span><br><span class="line">    <span class="attr">at</span>: <span class="keyword">new</span> <span class="title class_">Date</span>().<span class="title function_">toISOString</span>(),</span><br><span class="line">    <span class="attr">note</span>: <span class="title class_">String</span>(note || <span class="string">&#x27;&#x27;</span>),</span><br><span class="line">    <span class="attr">bytes</span>: <span class="title class_">Buffer</span>.<span class="title function_">byteLength</span>(raw, <span class="string">&#x27;utf8&#x27;</span>),</span><br><span class="line">    raw            <span class="comment">// 整个文件的原文</span></span><br><span class="line">  &#125;;</span><br><span class="line">  fs.<span class="title function_">writeFileSync</span>(file, <span class="title class_">JSON</span>.<span class="title function_">stringify</span>(record), <span class="string">&#x27;utf8&#x27;</span>);</span><br><span class="line">  <span class="comment">// ...并只保留最近 N 版</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>回滚时先给当前版本做一次快照，这样「回滚」本身也能被撤销。</p>
+<p><strong>定时发布</strong>是一个 30 秒轮询的定时器，检查到点的任务就触发一次完整构建。它有两个必须注意的点：</p>
+<ul>
+<li>到点后<strong>先标记完成再执行</strong>，避免部署失败时无限重试</li>
+<li>启动时清理指向已删除文章的僵尸任务</li>
+</ul>
+<h1 id="第五步：部署链路"><a href="#第五步：部署链路" class="headerlink" title="第五步：部署链路"></a>第五步：部署链路</h1><h2 id="三种发布模式"><a href="#三种发布模式" class="headerlink" title="三种发布模式"></a>三种发布模式</h2><table>
+<thead>
+<tr>
+<th>模式</th>
+<th>执行内容</th>
+<th>适用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>构建并部署</td>
+<td><code>hexo clean</code> → <code>generate</code> → <code>deploy</code></td>
+<td>日常，本机一步到位</td>
+</tr>
+<tr>
+<td>仅本地构建</td>
+<td><code>hexo clean</code> → <code>generate</code></td>
+<td>只看效果，不上线</td>
+</tr>
+<tr>
+<td>提交给 Actions</td>
+<td><code>git commit</code> + <code>git push</code></td>
+<td>云端构建，换电脑也能发</td>
+</tr>
+</tbody></table>
+<h2 id="凭据预检"><a href="#凭据预检" class="headerlink" title="凭据预检"></a>凭据预检</h2><p>预检的核心是一次 <code>git push --dry-run</code>：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> args = [...a.<span class="property">args</span>, <span class="string">&#x27;push&#x27;</span>, ...(opts.<span class="property">dryRun</span> ? [<span class="string">&#x27;--dry-run&#x27;</span>] : []), <span class="string">&#x27;--force&#x27;</span>, url, ref];</span><br></pre></td></tr></table></figure>
+
+<p><code>--dry-run</code> 会完整走一遍认证与权限协商，但不写任何东西。我在测试时确认过这一点：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">预检前远端 master : dfc7910</span><br><span class="line">预检耗时           : 2.1s</span><br><span class="line">预检后远端 master : dfc7910     ← 未变</span><br></pre></td></tr></table></figure>
+
+<p>它的价值在于<strong>把慢的失败变快</strong>：网络不通时，21 秒的超时会从「构建完之后才发生」提前到「构建之前就发生」。</p>
+<h2 id="直连失败自动降级"><a href="#直连失败自动降级" class="headerlink" title="直连失败自动降级"></a>直连失败自动降级</h2><p>这个功能是被真实的失败逼出来的。我本机直连 GitHub 经常超时：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">fatal: unable to access <span class="string">&#x27;https://github.com/Y3148y/Y3148y.github.io.git/&#x27;</span>:</span><br><span class="line">Failed to connect to github.com port 443 after 21107 ms</span><br></pre></td></tr></table></figure>
+
+<p>当时的预检对网络类错误是<strong>放行</strong>的（我当时的理由是「可能是瞬时抖动，硬阻断反而发不出去」）。结果就是：预检发现网络不通 → 照样完整构建 15 秒 → 真正 push 时再等 21 秒超时 → <strong>白等 40 秒还是失败</strong>。</p>
+<p>改成双路探测，先直连、失败自动带代理重试：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">async</span> <span class="keyword">function</span> <span class="title function_">pushWithFallback</span>(<span class="params">url, ref, opts = &#123;&#125;</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> attempts = [&#123; <span class="attr">label</span>: <span class="string">&#x27;直连&#x27;</span>, <span class="attr">args</span>: [] &#125;];</span><br><span class="line">  <span class="keyword">const</span> proxy = opts.<span class="property">autoProxy</span> !== <span class="literal">false</span> ? <span class="keyword">await</span> <span class="title function_">detectProxy</span>() : <span class="literal">null</span>;</span><br><span class="line">  <span class="keyword">if</span> (proxy) attempts.<span class="title function_">push</span>(&#123; <span class="attr">label</span>: <span class="string">&#x27;代理&#x27;</span>, <span class="attr">args</span>: <span class="title function_">proxyArgs</span>(proxy) &#125;);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (<span class="keyword">const</span> a <span class="keyword">of</span> attempts) &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="keyword">const</span> args = [...a.<span class="property">args</span>, <span class="string">&#x27;push&#x27;</span>, ...(opts.<span class="property">dryRun</span> ? [<span class="string">&#x27;--dry-run&#x27;</span>] : []), <span class="string">&#x27;--force&#x27;</span>, url, ref];</span><br><span class="line">      <span class="keyword">await</span> <span class="title function_">exec</span>(<span class="string">&#x27;git&#x27;</span>, args, &#123; <span class="comment">/* ... */</span> &#125;);</span><br><span class="line">      <span class="keyword">return</span> &#123; <span class="attr">ok</span>: <span class="literal">true</span>, <span class="attr">via</span>: a.<span class="property">label</span>, proxy &#125;;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (err) &#123;</span><br><span class="line">      <span class="comment">// 认证问题换代理也没用，直接放弃</span></span><br><span class="line">      <span class="keyword">if</span> (<span class="title function_">looksLikeAuthProblem</span>(err.<span class="property">output</span>)) &#123;</span><br><span class="line">        <span class="keyword">return</span> &#123; <span class="attr">ok</span>: <span class="literal">false</span>, <span class="attr">auth</span>: <span class="literal">true</span>, <span class="attr">error</span>: err, proxy &#125;;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意<strong>认证类错误不重试</strong>。401&#x2F;403 换代理路径也一样是 401，重试只是浪费时间。</p>
+<p>代理探测也不是简单地读环境变量，而是真正建 TCP 连接确认端口在监听：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> s = net.<span class="title function_">connect</span>(&#123; <span class="attr">host</span>: <span class="string">&#x27;127.0.0.1&#x27;</span>, port &#125;);</span><br><span class="line">s.<span class="built_in">setTimeout</span>(<span class="number">500</span>, <span class="function">() =&gt;</span> <span class="title function_">done</span>(<span class="literal">null</span>));</span><br><span class="line">s.<span class="title function_">on</span>(<span class="string">&#x27;connect&#x27;</span>, <span class="function">() =&gt;</span> <span class="title function_">done</span>(p));</span><br><span class="line">s.<span class="title function_">on</span>(<span class="string">&#x27;error&#x27;</span>, <span class="function">() =&gt;</span> <span class="title function_">done</span>(<span class="literal">null</span>));</span><br></pre></td></tr></table></figure>
+
+<p>验证这个逻辑时我没有靠网络抖动碰运气，而是构造了一个沙箱仓库，把它的本地 <code>http.proxy</code> 指向死端口 <code>127.0.0.1:1</code>，使直连<strong>必然失败</strong>，然后验证带 <code>-c</code> 覆盖参数的降级重试能否成功。结果符合预期，远端 SHA 全程未变。</p>
+<h2 id="为什么手写-git-push"><a href="#为什么手写-git-push" class="headerlink" title="为什么手写 git push"></a>为什么手写 git push</h2><p><code>hexo deploy</code> 内部用的是：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// hexo-deployer-git 源码</span></span><br><span class="line"><span class="title function_">git</span>(<span class="string">&#x27;push&#x27;</span>, <span class="string">&#x27;-u&#x27;</span>, repo.<span class="property">url</span>, <span class="string">&#x27;HEAD:&#x27;</span> + repo.<span class="property">branch</span>, <span class="string">&#x27;--force&#x27;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>它从 <code>_config.yml</code> 读推送目标。要用它推我的 Pages 仓库，PAT 就得明文写进 <code>_config.yml</code>——而这个文件是<strong>要提交进 git 的</strong>。等于把令牌永久留在仓库历史里。</p>
+<p>手写推送就能让令牌只在运行时存在：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">git</span> <span class="string">remote</span> <span class="string">add</span> <span class="string">origin</span> <span class="string">&quot;https://x-access-token:$&#123;DEPLOY_TOKEN&#125;@github.com/$&#123;DEPLOY_REPO&#125;.git&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>$DEPLOY_TOKEN</code> 来自 Actions Secrets，进程结束就没了，而且 GitHub 会自动把日志里的令牌掩码成 <code>***</code>。</p>
+<h1 id="CI-自动部署：四个坑"><a href="#CI-自动部署：四个坑" class="headerlink" title="CI 自动部署：四个坑"></a>CI 自动部署：四个坑</h1><p>后台的第三个模式依赖 GitHub Actions。这部分我踩了四个连续的坑，值得完整记下来。</p>
+<h2 id="三个仓库的分工"><a href="#三个仓库的分工" class="headerlink" title="三个仓库的分工"></a>三个仓库的分工</h2><p>先澄清一个常见误解。CI 工作流放在<strong>私密的内容仓库</strong>里，不是因为搞错了，而是因为产物仓库里根本没有源码：</p>
+<table>
+<thead>
+<tr>
+<th>仓库</th>
+<th>可见性</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Y3148y/my-blog</code></td>
+<td>私密</td>
+<td>文章、配置、后台代码、<strong>工作流定义</strong></td>
+</tr>
+<tr>
+<td><code>Y3148y/hexo-theme-butterfly</code></td>
+<td>公开</td>
+<td>主题定制（CI 从这里拉）</td>
+</tr>
+<tr>
+<td><code>Y3148y/Y3148y.github.io</code></td>
+<td>公开</td>
+<td><strong>只有产物</strong>：<code>index.html</code>、<code>css/</code>、<code>js/</code></td>
+</tr>
+</tbody></table>
+<p><code>github.io</code> 那个仓库的 17 个顶层条目全是构建产物，连 <code>package.json</code> 都没有。<strong>拿产物构建产物是不可能的</strong>，所以工作流只能待在有源码的地方。</p>
+<h2 id="主题定制为什么必须-Fork"><a href="#主题定制为什么必须-Fork" class="headerlink" title="主题定制为什么必须 Fork"></a>主题定制为什么必须 Fork</h2><p>站点的油画画廊、音乐播放器、访客欢迎卡、L2D 挂钟，全在 <code>themes/butterfly</code> 里。而该目录被 <code>.gitignore</code> 忽略，定制只存在于本机。Actions 跑在 GitHub 的云端机器上，看不见我的硬盘。</p>
+<p>我试过绕开 Fork——把定制导出成一个 patch，让 CI 克隆上游后打上去：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">git <span class="built_in">clone</span> --depth 1 --branch dev https://github.com/jerryc127/hexo-theme-butterfly.git</span><br><span class="line">git apply custom.patch</span><br></pre></td></tr></table></figure>
+
+<p>实测失败：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">error: patch failed: layout/includes/widget/card_announcement.pug</span><br><span class="line">error: repository lacks the necessary blob to perform 3-way merge</span><br></pre></td></tr></table></figure>
+
+<p>原因是我的定制基于上游的 <code>e1e2fb6</code>，而上游 <code>dev</code> 已经前进到 <code>cf67a63</code>。补丁依赖的上下文在新版本里不存在了。</p>
+<p><strong>这反过来印证了 Fork 的价值</strong>：它带着完整 git 历史，保留了「和上游同步」的能力，而补丁做不到。</p>
+<h2 id="坑一：secrets-不会自动变成-shell-变量"><a href="#坑一：secrets-不会自动变成-shell-变量" class="headerlink" title="坑一：secrets 不会自动变成 shell 变量"></a>坑一：secrets 不会自动变成 shell 变量</h2><p>这是最基础的一个，也是我最初完全没意识到的规则。</p>
+<p>我的预检步骤长这样：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="bullet">-</span> <span class="attr">name:</span> <span class="string">检查必需配置</span></span><br><span class="line">  <span class="attr">run:</span> <span class="string">|</span></span><br><span class="line">    [ <span class="string">-n</span> <span class="string">&quot;$&#123;THEME_REPO:-&#125;&quot;</span> ]   <span class="string">||</span> <span class="string">missing=&quot;$missing</span> <span class="string">THEME_REPO&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>看起来没问题。但它永远失败——因为 <strong>GitHub Actions 不会把 <code>secrets.*</code> 自动注入 <code>run</code> 脚本的环境变量</strong>，必须显式声明 <code>env:</code> 映射：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="bullet">-</span> <span class="attr">name:</span> <span class="string">检查必需配置</span></span><br><span class="line">  <span class="attr">env:</span></span><br><span class="line">    <span class="attr">THEME_REPO:</span> <span class="string">$&#123;&#123;</span> <span class="string">secrets.THEME_REPO</span> <span class="string">&#125;&#125;</span></span><br><span class="line">    <span class="attr">THEME_BRANCH:</span> <span class="string">$&#123;&#123;</span> <span class="string">secrets.THEME_BRANCH</span> <span class="string">&#125;&#125;</span></span><br><span class="line">    <span class="attr">DEPLOY_TOKEN:</span> <span class="string">$&#123;&#123;</span> <span class="string">secrets.DEPLOY_TOKEN</span> <span class="string">&#125;&#125;</span></span><br><span class="line">  <span class="attr">run:</span> <span class="string">|</span></span><br><span class="line">    <span class="comment"># ...</span></span><br></pre></td></tr></table></figure>
+
+<p>我在这一轮反复失败的时候，才真正理解这条规则。而在那之前，我已经把这个 bug 推上去三次了。</p>
+<h2 id="坑二：git-init-后推送必须-–force"><a href="#坑二：git-init-后推送必须-–force" class="headerlink" title="坑二：git init 后推送必须 –force"></a>坑二：git init 后推送必须 –force</h2><p>CI 的推送步骤是这样的：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">rm</span> -rf .deploy_git</span><br><span class="line">git init -q .deploy_git</span><br><span class="line"><span class="built_in">cd</span> .deploy_git</span><br><span class="line">git checkout -q -b master</span><br><span class="line"><span class="comment"># ... cp public/. . &amp;&amp; git add -A &amp;&amp; git commit</span></span><br><span class="line">git push origin master</span><br></pre></td></tr></table></figure>
+
+<p>推送会被拒：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">! [rejected]        master -&gt; master (fetch first)</span><br><span class="line">hint: Updates were rejected because the remote contains work that you <span class="keyword">do</span> not have locally.</span><br></pre></td></tr></table></figure>
+
+<p>原因很直白：<code>git init</code> 建的是<strong>全新空仓库</strong>，它的 <code>master</code> 与远端 <code>master</code> 没有任何祖先关系，git 视其为「要用一条完全无关的历史覆盖现有历史」，默认拒绝。</p>
+<p>而你本机 <code>hexo deploy</code> 从来没出过这个问题——因为 <code>hexo-deployer-git</code> 内部本来就带 <code>--force</code>。我手写时按正常 git 直觉写，忘了它本来就是覆盖语义。</p>
+<p>Pages 仓库里全是构建产物，没有任何手工维护的内容，所以覆盖是正确的：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">git push -q --force origin <span class="string">&quot;<span class="variable">$&#123;DEPLOY_BRANCH&#125;</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>这个 bug 有点讽刺：我连<strong>失败的原因都定位对了</strong>，却在修复方案里没想到自己漏了 <code>--force</code>，直到用户把日志贴过来才看清。</p>
+<h2 id="坑三：bash-e-会让诊断脚本自杀"><a href="#坑三：bash-e-会让诊断脚本自杀" class="headerlink" title="坑三：bash -e 会让诊断脚本自杀"></a>坑三：bash -e 会让诊断脚本自杀</h2><p>为了排查前两个问题，我加了一个「检查令牌权限」的诊断步骤。它打印身份、令牌作用域、对目标仓库的实际权限。写完直接推送，然后失败了。</p>
+<p>日志长这样：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">令牌类型与作用域：</span><br><span class="line">  认证身份      : Y3148y</span><br><span class="line">Error: Process completed with exit code 1.</span><br></pre></td></tr></table></figure>
+
+<p>打印完身份就<strong>直接死了</strong>，后面的结论一句都没输出。</p>
+<p>原因在日志开头那行被忽略的信息：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">shell: /usr/bin/bash -e &#123;0&#125;</span><br></pre></td></tr></table></figure>
+
+<p>GitHub 默认以 <code>bash -e</code> 执行 <code>run</code> 脚本。而我那一步还写了 <code>set -uo pipefail</code>，两者叠加后：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">SCOPES=$(<span class="built_in">printf</span> <span class="string">&#x27;%s&#x27;</span> <span class="string">&quot;<span class="variable">$HEADERS</span>&quot;</span> | grep -i <span class="string">&#x27;^x-oauth-scopes:&#x27;</span> | ...)</span><br><span class="line">                                          ↑ 我的令牌是 Fine-grained PAT，没有这个响应头</span><br><span class="line">                                            grep 返回 1 → pipefail → -e → 脚本立即退出</span><br></pre></td></tr></table></figure>
+
+<p><strong>这个 bug 恰好只在「令牌是 Fine-grained PAT」时触发</strong>——也就是最需要诊断的场景，反而把诊断本身干掉了。</p>
+<p>修复是让诊断步骤永不因单条命令失败而中断：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># GitHub 默认以 `bash -e &#123;0&#125;` 执行 run，配合 pipefail 时，</span></span><br><span class="line"><span class="comment"># 任何匹配不到内容的 grep 都会让脚本在打印结论前直接退出。</span></span><br><span class="line"><span class="built_in">set</span> +e</span><br></pre></td></tr></table></figure>
+
+<p>之后我用桩 <code>curl</code> 在 <code>bash -e</code> 下实跑了三种场景（Fine-grained、经典 PAT、无法访问仓库），确认退出码全部符合预期才推送。</p>
+<h2 id="坑四：Fine-grained-PAT-的授权范围"><a href="#坑四：Fine-grained-PAT-的授权范围" class="headerlink" title="坑四：Fine-grained PAT 的授权范围"></a>坑四：Fine-grained PAT 的授权范围</h2><p>换成新令牌后仍然 403：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">remote: Permission to Y3148y/Y3148y.github.io.git denied to Y3148y.</span><br></pre></td></tr></table></figure>
+
+<p>注意这里的关键信息是<strong>身份被正确解析成了 <code>Y3148y</code></strong>——说明令牌有效、认证通过，问题在授权范围。</p>
+<p>定位方式是比较响应头：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -sS -D - -o /dev/null -H <span class="string">&quot;Authorization: Bearer &lt;令牌&gt;&quot;</span> https://api.github.com/user</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">X-OAuth-Scopes:                                       ← 空的</span><br><span class="line">github-authentication-token-expiration: 2026-11-16 ...  ← 只有 Fine-grained 才有这个头</span><br></pre></td></tr></table></figure>
+
+<p>经典 PAT 的 <code>X-OAuth-Scopes</code> 一定有值。空值 + 出现 expiration 头，说明这是 <strong>Fine-grained PAT</strong>。</p>
+<p>两者的授权模型完全不同：</p>
+<ul>
+<li><strong>经典 PAT</strong>：勾一个 <code>repo</code> 就覆盖名下所有仓库</li>
+<li><strong>Fine-grained PAT</strong>：必须<strong>逐个仓库</strong>授权，默认只勾当前所在的仓库</li>
+</ul>
+<p>所以必须把 <code>Y3148y.github.io</code> 也加进授权列表，Contents 权限设为 Read and write。</p>
+<h2 id="一个附带的安全问题"><a href="#一个附带的安全问题" class="headerlink" title="一个附带的安全问题"></a>一个附带的安全问题</h2><p>排查过程中，我把一个完整的 PAT 明文贴进了对话里。这属于明文密钥泄露，标准处置是<strong>立刻吊销重建</strong>。</p>
+<p>顺带说一句：排查令牌权限时，更安全的做法是让 CI 自己打印脱敏结果，而不是把令牌拿到本地 curl。我当时图省事走了捷径。</p>
+<h1 id="踩坑复盘"><a href="#踩坑复盘" class="headerlink" title="踩坑复盘"></a>踩坑复盘</h1><p>除了 CI，下面这几个是我自己犯的错。</p>
+<h2 id="我删掉了自己文章的封面"><a href="#我删掉了自己文章的封面" class="headerlink" title="我删掉了自己文章的封面"></a>我删掉了自己文章的封面</h2><p>某次做清理，我把主题目录里 15 个新增图片按「是否被引用」分了两类：4 个在用的移到了 <code>source/img/</code>，11 个判定为死文件删除，合计释放 38 MB。</p>
+<p>判断「是否被引用」时，我穷尽搜索了主题的 pug 模板、JS 脚本、stylus 和两个 yml 配置：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">搜索 &quot;lady&quot; 全仓库  →  0 处命中</span><br></pre></td></tr></table></figure>
+
+<p>结论是「这些文件一次都没被引用」。<strong>但搜索范围本身是错的。</strong></p>
+<p>图片引用可以出现在<strong>文章 frontmatter</strong> 里：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">cover:</span> <span class="string">/img/feild.webp</span></span><br></pre></td></tr></table></figure>
+
+<p>而 <code>source/_posts/*.md</code> 根本没在我的搜索范围内。<code>feild.webp</code> 被 3 篇文章引用，<code>sea.webp</code> 被 Music 页的 <code>top_img</code> 引用。这两个一失效，主题就按 <code>error_img.post_page</code> 回落到 <code>/img/404.jpg</code>，<strong>线上所有文章封面变成了 404 错误图</strong>。</p>
+<p>修复是从主题仓库删除前的提交以二进制方式取回原始 blob，并逐个校验字节数与 WebP 文件头：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> blob = <span class="title function_">execFileSync</span>(<span class="string">&#x27;git&#x27;</span>, [<span class="string">&#x27;-C&#x27;</span>, <span class="variable constant_">THEME</span>, <span class="string">&#x27;rev-parse&#x27;</span>, <span class="string">&#x27;dfd7377:source/img/feild.webp&#x27;</span>]);</span><br><span class="line"><span class="keyword">const</span> expected = <span class="title class_">Number</span>(<span class="title function_">execFileSync</span>(<span class="string">&#x27;git&#x27;</span>, [<span class="string">&#x27;-C&#x27;</span>, <span class="variable constant_">THEME</span>, <span class="string">&#x27;cat-file&#x27;</span>, <span class="string">&#x27;-s&#x27;</span>, blob]));</span><br><span class="line"><span class="keyword">const</span> buf = <span class="title function_">execFileSync</span>(<span class="string">&#x27;git&#x27;</span>, [<span class="string">&#x27;-C&#x27;</span>, <span class="variable constant_">THEME</span>, <span class="string">&#x27;cat-file&#x27;</span>, <span class="string">&#x27;blob&#x27;</span>, blob], &#123; <span class="attr">encoding</span>: <span class="string">&#x27;buffer&#x27;</span> &#125;);</span><br><span class="line"><span class="keyword">if</span> (buf.<span class="property">length</span> !== expected) &#123; <span class="comment">/* 中止写入 */</span> &#125;</span><br></pre></td></tr></table></figure>
+
+<p>（这一步也是踩坑：用 PowerShell 的 <code>&gt;</code> 重定向导出二进制会破坏文件，第一次导出后大小对不上才改成 Node 读写。）</p>
+<p>事后我重写了审计脚本，这次覆盖了所有可能的引用点：主题模板、脚本、配置、<strong>全部 Markdown 的 frontmatter</strong>、<code>_data</code> 目录。扫描 226 个文本文件后确认，剩下两个「仍被引用」的文件（<code>yolu.webp</code>、<code>lady.webp</code>）引用只存在于教程文章的<strong>代码块内</strong>——是教读者怎么写配置的示例文本，不产生真实图片请求。</p>
+<p>这次教训是：<strong>在下「未被引用」这种结论之前，先问一句「有没有我搜不到的地方」。</strong></p>
+<h2 id="标题按钮多出一截井号"><a href="#标题按钮多出一截井号" class="headerlink" title="标题按钮多出一截井号"></a>标题按钮多出一截井号</h2><p>用户反馈：「所有的标题按键，末尾出现了多余的符号 <code>#</code>，使用 H2 显示的是 <code>## ##</code>」。</p>
+<p>根因是工具栏处理器把同一个字符串同时当前缀和后缀：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 错误</span></span><br><span class="line"><span class="title function_">surround</span>(btn.<span class="property">dataset</span>.<span class="property">wrap</span>, btn.<span class="property">dataset</span>.<span class="property">wrap</span>, <span class="string">&#x27;文本&#x27;</span>)</span><br></pre></td></tr></table></figure>
+
+<p>这对 <code>**</code>、<code>*</code>、<code>~~</code> 这类<strong>包裹型</strong>格式是对的，但对 <code>## </code> 这种<strong>行首标记</strong>是错的——标题不需要闭合符号，于是变成 <code>## 文字##</code>。</p>
+<p>修复是区分两类按钮：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">&lt;!-- 包裹型：需要闭合 --&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">button</span> <span class="attr">data-wrap</span>=<span class="string">&quot;**&quot;</span> <span class="attr">title</span>=<span class="string">&quot;加粗&quot;</span>&gt;</span>B<span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br><span class="line"><span class="comment">&lt;!-- 行首型：只需前缀 --&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">button</span> <span class="attr">data-line</span>=<span class="string">&quot;##&quot;</span> <span class="attr">title</span>=<span class="string">&quot;二级标题&quot;</span>&gt;</span>H2<span class="tag">&lt;/<span class="name">button</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (btn.<span class="property">dataset</span>.<span class="property">line</span>) <span class="keyword">return</span> <span class="title function_">linePrefix</span>(btn.<span class="property">dataset</span>.<span class="property">line</span>);</span><br><span class="line"><span class="keyword">if</span> (btn.<span class="property">dataset</span>.<span class="property">wrap</span>) <span class="keyword">return</span> <span class="title function_">surround</span>(btn.<span class="property">dataset</span>.<span class="property">wrap</span>, btn.<span class="property">dataset</span>.<span class="property">wrap</span>, <span class="string">&#x27;文本&#x27;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>顺带修了 <code>linePrefix</code> 的一个隐患：它原先不剥离行首已有的井号，对 <code>### 三级标题</code> 再点 H2 会得到 <code>## ### 三级标题</code>。现在先剥离 1–6 级井号再拼接。</p>
+<h2 id="三次让用户当我的调试工具"><a href="#三次让用户当我的调试工具" class="headerlink" title="三次让用户当我的调试工具"></a>三次让用户当我的调试工具</h2><p>CI 调试那一轮我连续失败四次，每次都是：写完 → 推送 → 让用户去 Actions 页面截图发给我 → 我猜。中间我甚至起过「本地复现 CI」的念头，然后被打断，就再没回来做。</p>
+<p><strong>根因只有一个：工作流脚本我一次都没在本地执行过就推上去了。</strong></p>
+<p>补上本地验证之后，很多问题一次就确认了：</p>
+<ul>
+<li>构建：完整跑一遍，148 个文件，13 秒</li>
+<li>推送：构造一个<strong>非空的</strong>本地远端复现 <code>non-fast-forward</code>，再验证 <code>--force</code> 能修复</li>
+<li>诊断脚本：用桩 <code>curl</code> 在 <code>bash -e</code> 下跑三种令牌场景，校验退出码</li>
+</ul>
+<p>还有一次是验证降级重试：我在沙箱仓库里把本地 <code>http.proxy</code> 指向死端口 <code>127.0.0.1:1</code>，使直连<strong>必然失败</strong>，然后验证带 <code>-c</code> 覆盖参数的代理重试能成功——确定性可判定，不依赖网络抖动碰运气。</p>
+<p>另一个同类问题：<code>detectProxy()</code> 的第一版我在 <code>net.connect</code> 的回调里写了 <code>return</code>，那毫无意义，函数会立刻返回第一个候选，等于<strong>根本没检测</strong>。不实际跑一次根本发现不了。</p>
+<h1 id="常用命令"><a href="#常用命令" class="headerlink" title="常用命令"></a>常用命令</h1><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 启动后台（首次会打印初始口令）</span></span><br><span class="line">npm run admin            <span class="comment"># → http://127.0.0.1:4001/admin/</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 指定口令与端口</span></span><br><span class="line">ADMIN_PASSWORD=你的口令 ADMIN_PORT=5000 npm run admin</span><br><span class="line"></span><br><span class="line"><span class="comment"># 本地预览站点（另一个终端）</span></span><br><span class="line">npm run server           <span class="comment"># → http://localhost:4000</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 构建与部署</span></span><br><span class="line">npm run build            <span class="comment"># hexo generate</span></span><br><span class="line">npm run clean            <span class="comment"># hexo clean</span></span><br><span class="line">npm run deploy           <span class="comment"># hexo deploy</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 改后台口令：登录后在「设置」里修改</span></span><br><span class="line"><span class="comment"># 指定代理端口（默认自动探测 7897/7890/10809/1080/8888）</span></span><br><span class="line">ADMIN_PROXY=http://127.0.0.1:7897 npm run admin</span><br></pre></td></tr></table></figure>
+
+<h1 id="常见问题"><a href="#常见问题" class="headerlink" title="常见问题"></a>常见问题</h1><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因与解决</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>忘了后台口令</td>
+<td><code>admin/data/config.json</code> 里是 scrypt 哈希，无法反解。删掉该文件重启会重新生成并打印新口令</td>
+</tr>
+<tr>
+<td>后台能开但文章存不进去</td>
+<td>检查 <code>source/_posts/</code> 目录权限；<code>.gitignore</code> 里的 <code>/admin/data/</code> 是凭据目录，不要手动删它以外的 admin 文件</td>
+</tr>
+<tr>
+<td>预览里 <code>&#123;% art_gallery %&#125;</code> 不显示画廊</td>
+<td>预期行为。浏览器端没有 Hexo 渲染管线，这类标签预览时显示为说明卡片，线上由 <code>scripts/art-gallery.js</code> 渲染</td>
+</tr>
+<tr>
+<td>图片上传提示格式不支持</td>
+<td>只接受 JPG&#x2F;PNG&#x2F;GIF&#x2F;WebP&#x2F;AVIF&#x2F;BMP&#x2F;ICO。SVG 被拒——它能携带脚本，且 Hexo 会原样发布到公网</td>
+</tr>
+<tr>
+<td>改了标题但线上 URL 没变</td>
+<td>permalink 的 <code>:title</code> 取自<strong>文件名</strong>。需要在文章属性里勾「改标题时同步重命名文件」再保存</td>
+</tr>
+<tr>
+<td>CI 每次推送都发失败邮件</td>
+<td>检查仓库 Secrets 是否配齐；工作流会在第一步预检并明确指出缺哪个变量</td>
+</tr>
+<tr>
+<td>定时发布没触发</td>
+<td>定时器在后台进程里，关掉终端就不会执行</td>
+</tr>
+<tr>
+<td>文章封面变成 404 错误图</td>
+<td><code>error_img.post_page</code> 的兜底生效了，说明 frontmatter 里的 <code>cover</code> 路径指向的文件不存在</td>
+</tr>
+</tbody></table>
+<h1 id="总结与后续"><a href="#总结与后续" class="headerlink" title="总结与后续"></a>总结与后续</h1><p>这个后台的核心并不复杂：<strong>一个只在本机跑的 Node 进程，把 Markdown 文件的编辑工作从「开终端」搬到「开浏览器」</strong>。技术上最花心思的反而是序列化那块——因为要保证「在后台里保存一篇文章」和「用记事本改这篇文章」产生的文件在语义上完全等价。</p>
+<p>几条经验留给自己：</p>
+<ol>
+<li><strong>序列化必须幂等。</strong> 不幂等的保存会持续污染 git 历史。</li>
+<li><strong>下「未被引用」的结论之前，先确认搜索范围是完整的。</strong> 我因为漏搜 frontmatter 而删掉了自己的文章封面。</li>
+<li><strong>脚本要先在本地跑通再推上去。</strong> 反复让别人当调试工具，本质上是把本该自己做的验证外包了。</li>
+<li><strong>失败日志要能自解释。</strong> 那些「退出码 1 然后什么都没有」的失败，是最消耗时间也最让人恼火的。CI 里加预检和分类提示，价值远超它的实现成本。</li>
+</ol>
+<p>后续可以做的：编辑器支持分屏对照 diff、给 <code>&#123;% mermaid %&#125;</code> 做所见即所得的图形编辑、定时发布与 GitHub Actions 打通（推送后由云端在到点时构建，而不是依赖本机进程常驻）。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://Y3148y.github.io">听雨</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://y3148y.github.io/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/">https://y3148y.github.io/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://Y3148y.github.io" target="_blank">听雨</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Hexo/">Hexo</a><a class="post-meta__tags" href="/tags/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0/">博客后台</a><a class="post-meta__tags" href="/tags/Node-js/">Node.js</a><a class="post-meta__tags" href="/tags/%E6%95%88%E7%8E%87%E5%B7%A5%E5%85%B7/">效率工具</a></div><div class="post-share"><div class="social-share" data-image="/img/art/monet-waterlilies-sunset.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现"><img class="cover" src="/img/art/monet-parasol-1875.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">博客后台开发 01：整体架构与核心实现</div></div><div class="info-2"><div class="info-item-1"> 这个系列在讲什么给自己的 Hexo 博客加一个只在本机运行的后台，把「写文章」从开终端变成开浏览器。这个系列共三篇：    篇 主题 适合谁    01（本文） 为什么这么做、每个模块怎么实现 想自己动手搭一个后台的人   02 frontmatter 序列化 任何要写 Hexo 工具的人   03 部署与 CI 用 GitHub Actions 发静态站的人   01 讲整体取舍和实现细节。02 和 03 各自可以独立阅读。 先说清楚这个后台不是什么：它不是 CMS，不是网站的一部分，也不是要替代 Hexo。它只是一个跑在本机的 Node 进程，通过 HTTP 提供一个网页界面，最终仍然产出标准的 Markdown 文件交给 Hexo。这一点决定了后面所有的设计。 为什么不用现成的 hexo-admin社区有个 hexo-admin，名字看起来正好干这件事。看它的依赖： 1234567&quot;dependencies&quot;: &#123;  &quot;hexo-front-matter&quot;: &quot;^0.2.2&quot;,  &quot;hexo-...</div></div></div></a><a class="pagination-related" href="/2026/10/18/%E5%9F%BA%E4%BA%8EButterfly%E7%9A%84%E7%BD%91%E7%AB%99%E7%BE%8E%E5%8C%96%E6%95%99%E7%A8%8B05%EF%BC%9A%E6%B2%B9%E7%94%BB%E5%8D%B7%E8%BD%B4%E8%B7%B3%E8%BD%AC%E8%BF%87%E6%B8%A1/" title="基于Butterfly的网站美化教程05：油画卷轴跳转过渡"><img class="cover" src="/img/art/vangogh-starry-night.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">基于Butterfly的网站美化教程05：油画卷轴跳转过渡</div></div><div class="info-2"><div class="info-item-1">前言上一篇做完 Music 播放器和 Movie 画廊之后，我看着自己的画一直有个手痒的念头：既然访客点进来看的是这些画，为什么不用画本身来做页面切换的遮罩？ 于是做了这个：点击任意站内链接，一幅油画从屏幕顶部卷轴展开铺满全屏，画面中央淡入画名、作者与年代；PJAX 在完全遮住的那一瞬静默换页；随后卷轴向上收起，露出新页面。 整套东西没有引任何第三方库——没有 GSAP、没有 anime.js、连 View Transitions API 都没用（PJAX 自己管 DOM 交换，和原生 API 对不上）。纯 CSS 动画 + 一段调度 JS，加起来 590 行。 效果就是你现在点的每一个链接。5 幅画洗牌轮转，不会连着撞同一幅。   时序拆解先看清楚它到底在干什么，后面所有设计选择都是为了这张图： 123456789点击 │ ├─ t=0      顶轴落下 ────────────┐ │  t=80ms   布从顶边向下展开      │  遮住 420ms │  t=200ms  画名淡入              │  ← PJAX 在这里静默换页 │  t=480ms  ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现"><img class="cover" src="/img/art/monet-parasol-1875.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-18</div><div class="info-item-2">博客后台开发 01：整体架构与核心实现</div></div><div class="info-2"><div class="info-item-1"> 这个系列在讲什么给自己的 Hexo 博客加一个只在本机运行的后台，把「写文章」从开终端变成开浏览器。这个系列共三篇：    篇 主题 适合谁    01（本文） 为什么这么做、每个模块怎么实现 想自己动手搭一个后台的人   02 frontmatter 序列化 任何要写 Hexo 工具的人   03 部署与 CI 用 GitHub Actions 发静态站的人   01 讲整体取舍和实现细节。02 和 03 各自可以独立阅读。 先说清楚这个后台不是什么：它不是 CMS，不是网站的一部分，也不是要替代 Hexo。它只是一个跑在本机的 Node 进程，通过 HTTP 提供一个网页界面，最终仍然产出标准的 Markdown 文件交给 Hexo。这一点决定了后面所有的设计。 为什么不用现成的 hexo-admin社区有个 hexo-admin，名字看起来正好干这件事。看它的依赖： 1234567&quot;dependencies&quot;: &#123;  &quot;hexo-front-matter&quot;: &quot;^0.2.2&quot;,  &quot;hexo-...</div></div></div></a><a class="pagination-related" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑"><img class="cover" src="/img/art/monet-waterlilies-1917.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-18</div><div class="info-item-2">博客后台开发 02：frontmatter 序列化的那些坑</div></div><div class="info-2"><div class="info-item-1"> 序列化：为什么它是整个后台最难的一块上一篇讲了后台的整体结构和各个模块怎么实现。其中有一块我单独拎出来讲，因为它和我的博客无关，任何写 Hexo 工具的人都可能踩到，而且踩到的表现极其隐蔽：文件看起来完全正常，文章也能正常显示，但发布时间悄悄变了。 这一篇讲 frontmatter 的解析与序列化：一个后台要在「表单里的字段」和「磁盘上的 YAML 文本」之间来回转换，这件事听起来是十行代码的工作，实际上是整个项目里最容易写错的地方。 先看我们要处理的东西： 123456789---title: 深入剖析 Redis 底层原理date: 2026-10-18 14:30:00categories: 技术学习tags: [Hexo, Node.js]cover: /img/art/monet-waterlilies-sunset.jpg---正文从这里开始。  看起来人畜无害。但下面要讲的每一类问题，都藏在这六行里。 坑一：YAML 时间戳的 UTC 陷阱现象YAML 规范里，2026-10-18 14:30:00 这种格式是一个 timestamp 类型。js-yaml 解析它...</div></div></div></a><a class="pagination-related" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路"><img class="cover" src="/img/art/vangogh-poppy-field.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-18</div><div class="info-item-2">博客后台开发 03：部署与 CI 的完整链路</div></div><div class="info-2"><div class="info-item-1"> 这条链路上发生什么前两篇讲的是后台本身。这一篇讲从「在浏览器里点保存」到「GitHub Pages 上的站点更新」之间发生的事。 这条链路不长，但它是整个项目里失败次数最多的部分。不是因为它复杂，而是因为它横跨了三个 Git 仓库、两套身份认证、以及一个我至今没有完全搞懂的 Bash 默认行为。 文章的顺序大致是失败发生的顺序：先讲清楚三个仓库怎么分工，再讲本地的三种发布模式，然后是 CI 上的四个坑，最后讲一个我自己引入又修掉的回归。 三个仓库的分工先把结构讲清楚，因为后面所有的权限问题都源于这里。    仓库 可见性 内容    Y3148y/my-blog 私密 文章、配置、后台代码、工作流定义   Y3148y/hexo-theme-butterfly 公开 主题定制（CI 从这里拉）   Y3148y/Y3148y.github.io 公开 只有产物：index.html、css/、js/   工作流为什么必须在有源码的仓库一个常见的误解是「Pages 仓库才是站点的工作目录，工作流当然放那里」。但那个仓库里没有源码——它的顶层条目全是构建产物，连 package.j...</div></div></div></a><a class="pagination-related" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色"><img class="cover" src="/img/art/monet-waterlilies-1906.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-20</div><div class="info-item-2">博客后台开发 04：主题系统与护眼底色</div></div><div class="info-2"><div class="info-item-1"> 从「白色刺眼」说起上一篇讲完部署和 CI，后台的骨架算是齐了。这一篇回到界面上——因为我每天盯着它写文章，发现一个很实际的问题：白色面板盯久了刺眼。 最初后台只有一套配色：浅灰底、白面板、深字。晚上写文章的时候，尤其是房间灯关了只剩屏幕亮着，那片白是真的晃眼。深色模式后来加了，但深色模式下我还要看图片预览，不是所有场景都适合。 于是我想要的效果是这样的：  深色 &#x2F; 亮色照旧，跟随系统，也能手动锁死； 再来一档护眼底色——经典的豆沙绿那种，整个界面沉在一片低饱和的绿里； 护眼的深浅可调，因为「多深的绿」这件事只有眼睛说了算，拖一下滑杆就行。  做下来一共踩了三个值得记录的坑：主题档位怎么组织、系统暗色怎么会把护眼色盖掉、以及滑杆那个「正中就是原色」的锚点是怎么反解出来的。 主题档位：一份数据，六种皮肤先把颜色从硬编码里拿出来。所有界面颜色都收进 CSS 变量： 12345678910:root &#123;  --bg: #f6f7f9;        /* 页面底色 */  --panel: #ffffff;     /* 面板：顶栏、侧栏、弹层、toast */ ...</div></div></div></a><a class="pagination-related" href="/2026/09/19/oil-painting-gallery-dev/" title="用 Python 和 Canvas 给博客搭一个油画画廊"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-19</div><div class="info-item-2">用 Python 和 Canvas 给博客搭一个油画画廊</div></div><div class="info-2"><div class="info-item-1">给 Hexo 博客做了个「AI 油画 + 裸眼 3D」画廊，前后端各一个模块，总共不到 500 行代码。这篇文章记录下实现思路。   整体架构123456789101112source/img/art/          ← 10 张莫奈 + 梵高原图       │       ▼tools/generate-oil.py    ← Python PIL 油画滤镜       │       ▼public/img/art/oil/      ← 10 张油画版（构建时生成）       │       ▼painting-engine.js       ← 前端：3D 视差 + Canvas 混合 + 滚动入场painting.css             ← 样式：深度层、油画 Canvas、降级art-gallery.js           ← Hexo tag：&#123;% art_gallery %&#125; 渲染卡片  数据驱动，加画只需要在 source/_data/art.yml 里加一行。  模块一：Python 油画滤镜123456789101112...</div></div></div></a><a class="pagination-related" href="/2026/09/02/Hexo-Butterfly%E4%BF%AE%E5%A4%8D%E6%96%87%E7%AB%A0%E5%8F%B3%E4%BE%A7%E7%9B%AE%E5%BD%95%E6%A0%8F%E6%B6%88%E5%A4%B1%E4%B8%8E%E4%B8%8D%E8%B7%9F%E9%9A%8F%E7%9A%84%E9%97%AE%E9%A2%98/" title="基于Butterfly的网站美化教程02：修复文章右侧目录栏消失与不跟随的问题"><img class="cover" src="/img/feild.webp" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-02</div><div class="info-item-2">基于Butterfly的网站美化教程02：修复文章右侧目录栏消失与不跟随的问题</div></div><div class="info-2"><div class="info-item-1">前言用 Hexo + Butterfly 主题写文章时发现两个问题：  目录栏消失：文章很长时，右侧目录栏随着页面一起向上滚动，很快就离开视口消失，无法固定在文章右侧。 目录不跟随：即使目录栏固定住了，往下读文章时目录列表也不会自动滚动定位到当前章节。  查资料、试了很多方案（改 CSS、写 JS、改模板……）都不行，最后终于找到病根。本文把这个正确的修复方法记录成一篇教程，希望能帮到遇到同样问题的人。  本文基于 Butterfly 主题（本项目版本 5.5.5），修复只需要改一行 CSS。  症状复现 文章 30000 多像素长 右侧栏有：作者卡、公告卡、目录卡、最新文章卡 滚动到中途，右侧栏整个滚出屏幕；即便固定住，目录也不跟着文章走  网上常见方案为什么不管用先说几个弯路，帮你避免浪费时间：    方案 结果    写 CSS 调 top 值 治标不治本   写 JS 监听滚动动态 fixed/sticky 布局错乱   把 TOC 移出 sticky_layout 改模板 破坏原有布局   给 .layout 加 align-items: flex-start 禁止 a...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="giscus-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">听雨</div><div class="author-info-description">welcome to my little nut</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">21</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">33</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Y3148y"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/Y3148y" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="welcome-content" id="welcome-info"><b><center>🎉 欢迎信息 🎉</center>&emsp;&emsp;欢迎来到我的小站，正在识别你的位置…</b></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="toc-number">2.</span> <span class="toc-text">整体架构</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8%E7%8E%B0%E6%88%90%E6%96%B9%E6%A1%88"><span class="toc-number">3.</span> <span class="toc-text">为什么不用现成方案</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9Afrontmatter-%E7%9A%84%E5%BA%8F%E5%88%97%E5%8C%96"><span class="toc-number">4.</span> <span class="toc-text">第一步：frontmatter 的序列化</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#YAML-%E6%97%B6%E9%97%B4%E6%88%B3%E7%9A%84-UTC-%E9%99%B7%E9%98%B1"><span class="toc-number">4.1.</span> <span class="toc-text">YAML 时间戳的 UTC 陷阱</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E7%94%A8-yaml-dump"><span class="toc-number">4.2.</span> <span class="toc-text">为什么不用 yaml.dump</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BE%80%E8%BF%94%E6%97%A0%E6%8D%9F%E6%80%8E%E4%B9%88%E9%AA%8C%E8%AF%81"><span class="toc-number">4.3.</span> <span class="toc-text">往返无损怎么验证</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9AHTTP-%E6%9C%8D%E5%8A%A1%E4%B8%8E%E9%89%B4%E6%9D%83"><span class="toc-number">5.</span> <span class="toc-text">第二步：HTTP 服务与鉴权</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%8D%E7%94%A8-Express"><span class="toc-number">5.1.</span> <span class="toc-text">不用 Express</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%A3%E4%BB%A4%E4%B8%8E%E4%BC%9A%E8%AF%9D"><span class="toc-number">5.2.</span> <span class="toc-text">口令与会话</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E7%BC%96%E8%BE%91%E5%99%A8%E4%B8%8E%E9%A2%84%E8%A7%88"><span class="toc-number">6.</span> <span class="toc-text">第三步：编辑器与预览</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A2%84%E8%A7%88%E7%9A%84%E9%9A%BE%E7%82%B9%E5%9C%A8-Hexo-%E4%B8%93%E6%9C%89%E6%A0%87%E7%AD%BE"><span class="toc-number">6.1.</span> <span class="toc-text">预览的难点在 Hexo 专有标签</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%A7%86%E5%9B%BE%E5%88%87%E6%8D%A2%E8%B8%A9%E4%BA%86%E4%B8%AA%E4%B8%A5%E9%87%8D%E7%9A%84%E5%9D%91"><span class="toc-number">6.2.</span> <span class="toc-text">视图切换踩了个严重的坑</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9A%E5%8E%86%E5%8F%B2%E7%89%88%E6%9C%AC%E4%B8%8E%E5%AE%9A%E6%97%B6%E5%8F%91%E5%B8%83"><span class="toc-number">7.</span> <span class="toc-text">第四步：历史版本与定时发布</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%AC%AC%E4%BA%94%E6%AD%A5%EF%BC%9A%E9%83%A8%E7%BD%B2%E9%93%BE%E8%B7%AF"><span class="toc-number">8.</span> <span class="toc-text">第五步：部署链路</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E7%A7%8D%E5%8F%91%E5%B8%83%E6%A8%A1%E5%BC%8F"><span class="toc-number">8.1.</span> <span class="toc-text">三种发布模式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%87%AD%E6%8D%AE%E9%A2%84%E6%A3%80"><span class="toc-number">8.2.</span> <span class="toc-text">凭据预检</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%9B%B4%E8%BF%9E%E5%A4%B1%E8%B4%A5%E8%87%AA%E5%8A%A8%E9%99%8D%E7%BA%A7"><span class="toc-number">8.3.</span> <span class="toc-text">直连失败自动降级</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E6%89%8B%E5%86%99-git-push"><span class="toc-number">8.4.</span> <span class="toc-text">为什么手写 git push</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#CI-%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2%EF%BC%9A%E5%9B%9B%E4%B8%AA%E5%9D%91"><span class="toc-number">9.</span> <span class="toc-text">CI 自动部署：四个坑</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E4%B8%AA%E4%BB%93%E5%BA%93%E7%9A%84%E5%88%86%E5%B7%A5"><span class="toc-number">9.1.</span> <span class="toc-text">三个仓库的分工</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%BB%E9%A2%98%E5%AE%9A%E5%88%B6%E4%B8%BA%E4%BB%80%E4%B9%88%E5%BF%85%E9%A1%BB-Fork"><span class="toc-number">9.2.</span> <span class="toc-text">主题定制为什么必须 Fork</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9D%91%E4%B8%80%EF%BC%9Asecrets-%E4%B8%8D%E4%BC%9A%E8%87%AA%E5%8A%A8%E5%8F%98%E6%88%90-shell-%E5%8F%98%E9%87%8F"><span class="toc-number">9.3.</span> <span class="toc-text">坑一：secrets 不会自动变成 shell 变量</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9D%91%E4%BA%8C%EF%BC%9Agit-init-%E5%90%8E%E6%8E%A8%E9%80%81%E5%BF%85%E9%A1%BB-%E2%80%93force"><span class="toc-number">9.4.</span> <span class="toc-text">坑二：git init 后推送必须 –force</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9D%91%E4%B8%89%EF%BC%9Abash-e-%E4%BC%9A%E8%AE%A9%E8%AF%8A%E6%96%AD%E8%84%9A%E6%9C%AC%E8%87%AA%E6%9D%80"><span class="toc-number">9.5.</span> <span class="toc-text">坑三：bash -e 会让诊断脚本自杀</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9D%91%E5%9B%9B%EF%BC%9AFine-grained-PAT-%E7%9A%84%E6%8E%88%E6%9D%83%E8%8C%83%E5%9B%B4"><span class="toc-number">9.6.</span> <span class="toc-text">坑四：Fine-grained PAT 的授权范围</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E4%B8%AA%E9%99%84%E5%B8%A6%E7%9A%84%E5%AE%89%E5%85%A8%E9%97%AE%E9%A2%98"><span class="toc-number">9.7.</span> <span class="toc-text">一个附带的安全问题</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E8%B8%A9%E5%9D%91%E5%A4%8D%E7%9B%98"><span class="toc-number">10.</span> <span class="toc-text">踩坑复盘</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%88%91%E5%88%A0%E6%8E%89%E4%BA%86%E8%87%AA%E5%B7%B1%E6%96%87%E7%AB%A0%E7%9A%84%E5%B0%81%E9%9D%A2"><span class="toc-number">10.1.</span> <span class="toc-text">我删掉了自己文章的封面</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A0%87%E9%A2%98%E6%8C%89%E9%92%AE%E5%A4%9A%E5%87%BA%E4%B8%80%E6%88%AA%E4%BA%95%E5%8F%B7"><span class="toc-number">10.2.</span> <span class="toc-text">标题按钮多出一截井号</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E6%AC%A1%E8%AE%A9%E7%94%A8%E6%88%B7%E5%BD%93%E6%88%91%E7%9A%84%E8%B0%83%E8%AF%95%E5%B7%A5%E5%85%B7"><span class="toc-number">10.3.</span> <span class="toc-text">三次让用户当我的调试工具</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4"><span class="toc-number">11.</span> <span class="toc-text">常用命令</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">12.</span> <span class="toc-text">常见问题</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%E4%B8%8E%E5%90%8E%E7%BB%AD"><span class="toc-number">13.</span> <span class="toc-text">总结与后续</span></a></li></ol></div></div><div class="card-widget card-post-series"><div class="item-headline"><i class="fa-solid fa-layer-group"></i><span>系列文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 04：主题系统与护眼底色"></a><div class="content"><a class="title" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色">博客后台开发 04：主题系统与护眼底色</a><time datetime="2026-10-20T09:00:00.000Z" title="发表于 2026-10-20 09:00:00">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路"><img src="/img/art/vangogh-poppy-field.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 03：部署与 CI 的完整链路"></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路">博客后台开发 03：部署与 CI 的完整链路</a><time datetime="2026-10-18T18:00:00.000Z" title="发表于 2026-10-18 18:00:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑"><img src="/img/art/monet-waterlilies-1917.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 02：frontmatter 序列化的那些坑"></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑">博客后台开发 02：frontmatter 序列化的那些坑</a><time datetime="2026-10-18T16:40:00.000Z" title="发表于 2026-10-18 16:40:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现"><img src="/img/art/monet-parasol-1875.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 01：整体架构与核心实现"></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现">博客后台开发 01：整体架构与核心实现</a><time datetime="2026-10-18T15:20:00.000Z" title="发表于 2026-10-18 15:20:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/" title="给 Hexo 博客加一个本地写作后台"><img src="/img/art/monet-waterlilies-sunset.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="给 Hexo 博客加一个本地写作后台"></a><div class="content"><a class="title" href="/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/" title="给 Hexo 博客加一个本地写作后台">给 Hexo 博客加一个本地写作后台</a><time datetime="2026-10-18T14:30:00.000Z" title="发表于 2026-10-18 14:30:00">2026-10-18</time></div></div></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/10/20/hello-world/" title="Hello World">Hello World</a><time datetime="2026-10-20T09:12:23.430Z" title="发表于 2026-10-20 09:12:23">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 04：主题系统与护眼底色"/></a><div class="content"><a class="title" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色">博客后台开发 04：主题系统与护眼底色</a><time datetime="2026-10-20T09:00:00.000Z" title="发表于 2026-10-20 09:00:00">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路"><img src="/img/art/vangogh-poppy-field.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 03：部署与 CI 的完整链路"/></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路">博客后台开发 03：部署与 CI 的完整链路</a><time datetime="2026-10-18T18:00:00.000Z" title="发表于 2026-10-18 18:00:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑"><img src="/img/art/monet-waterlilies-1917.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 02：frontmatter 序列化的那些坑"/></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑">博客后台开发 02：frontmatter 序列化的那些坑</a><time datetime="2026-10-18T16:40:00.000Z" title="发表于 2026-10-18 16:40:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现"><img src="/img/art/monet-parasol-1875.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 01：整体架构与核心实现"/></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现">博客后台开发 01：整体架构与核心实现</a><time datetime="2026-10-18T15:20:00.000Z" title="发表于 2026-10-18 15:20:00">2026-10-18</time></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(/img/sunrise.webp);"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 听雨</span></div><div class="footer_custom_text">你终于看到这里，希望你能天天开心</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.5"></script><script src="/js/main.js?v=5.5.5"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (false) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const getGiscusTheme = theme => theme === 'dark' ? 'dark' : 'light'
+
+  const createScriptElement = config => {
+    const ele = document.createElement('script')
+    Object.entries(config).forEach(([key, value]) => {
+      ele.setAttribute(key, value)
+    })
+    return ele
+  }
+
+  const loadGiscus = (el = document, key) => {
+    const mappingConfig = isShuoshuo
+      ? { 'data-mapping': 'specific', 'data-term': key }
+      : { 'data-mapping': (option && option['data-mapping']) || 'pathname' }
+
+    const giscusConfig = {
+      src: 'https://giscus.app/client.js',
+      'data-repo': 'Y3148y/my-blog-comments',
+      'data-repo-id': 'R_kgDOTV5zww',
+      'data-category-id': 'DIC_kwDOTV5zw84DBBql',
+      'data-theme': getGiscusTheme(document.documentElement.getAttribute('data-theme')),
+      'data-reactions-enabled': '1',
+      crossorigin: 'anonymous',
+      async: true,
+      ...option,
+      ...mappingConfig
+    }
+
+    const scriptElement = createScriptElement(giscusConfig)
+
+    el.querySelector('#giscus-wrap').appendChild(scriptElement)
+
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGiscus = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+  }
+
+  const changeGiscusTheme = theme => {
+    const iframe = document.querySelector('#giscus-wrap iframe')
+    if (iframe) {
+      const message = {
+        giscus: {
+          setConfig: {
+            theme: getGiscusTheme(theme)
+          }
+        }
+      }
+      iframe.contentWindow.postMessage(message, 'https://giscus.app')
+    }
+  }
+
+  btf.addGlobalFn('themeChange', changeGiscusTheme, 'giscus')
+
+  if (isShuoshuo) {
+    'Giscus' === 'Giscus'
+      ? window.shuoshuoComment = { loadComment: loadGiscus }
+      : window.loadOtherComment = loadGiscus
+    return
+  }
+
+  if ('Giscus' === 'Giscus' || !false) {
+    if (false) btf.loadComment(document.getElementById('giscus-wrap'), loadGiscus)
+    else loadGiscus()
+  } else {
+    window.loadOtherComment = loadGiscus
+  }
+})()</script></div><script defer src="/js/welcome.js"></script><script async src="/js/title.js"></script><script defer src="/js/global-player.js"></script><script defer src="/js/art-viewer.js"></script><script defer src="/js/painting-engine.js"></script><script defer src="/js/paint-scroll-transition.js?v=1"></script><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.5"></script></div></div><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"right","width":150,"height":300},"mobile":{"show":true},"react":{"opacity":1,"shadow":true},"log":false});</script></body></html>

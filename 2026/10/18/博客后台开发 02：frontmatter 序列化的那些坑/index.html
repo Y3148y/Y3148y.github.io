@@ -1,0 +1,778 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>博客后台开发 02：frontmatter 序列化的那些坑 | 听雨</title><meta name="author" content="听雨"><meta name="copyright" content="听雨"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="序列化：为什么它是整个后台最难的一块上一篇讲了后台的整体结构和各个模块怎么实现。其中有一块我单独拎出来讲，因为它和我的博客无关，任何写 Hexo 工具的人都可能踩到，而且踩到的表现极其隐蔽：文件看起来完全正常，文章也能正常显示，但发布时间悄悄变了。 这一篇讲 frontmatter 的解析与序列化：一个后台要在「表单里的字段」和「磁盘上的 YAML 文本」之间来回转换，这件事听起来是十行代码的工">
+<meta property="og:type" content="article">
+<meta property="og:title" content="博客后台开发 02：frontmatter 序列化的那些坑">
+<meta property="og:url" content="https://y3148y.github.io/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/index.html">
+<meta property="og:site_name" content="听雨">
+<meta property="og:description" content="序列化：为什么它是整个后台最难的一块上一篇讲了后台的整体结构和各个模块怎么实现。其中有一块我单独拎出来讲，因为它和我的博客无关，任何写 Hexo 工具的人都可能踩到，而且踩到的表现极其隐蔽：文件看起来完全正常，文章也能正常显示，但发布时间悄悄变了。 这一篇讲 frontmatter 的解析与序列化：一个后台要在「表单里的字段」和「磁盘上的 YAML 文本」之间来回转换，这件事听起来是十行代码的工">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://y3148y.github.io/img/art/monet-waterlilies-1917.jpg">
+<meta property="article:published_time" content="2026-10-18T16:40:00.000Z">
+<meta property="article:modified_time" content="2026-10-20T09:12:23.431Z">
+<meta property="article:author" content="听雨">
+<meta property="article:tag" content="Hexo">
+<meta property="article:tag" content="YAML">
+<meta property="article:tag" content="博客后台">
+<meta property="article:tag" content="序列化">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://y3148y.github.io/img/art/monet-waterlilies-1917.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "博客后台开发 02：frontmatter 序列化的那些坑",
+  "url": "https://y3148y.github.io/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/",
+  "image": "https://y3148y.github.io/img/art/monet-waterlilies-1917.jpg",
+  "datePublished": "2026-10-18T16:40:00.000Z",
+  "dateModified": "2026-10-20T09:12:23.431Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "听雨",
+      "url": "https://Y3148y.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/cat.png"><link rel="canonical" href="https://y3148y.github.io/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.5"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '博客后台开发 02：frontmatter 序列化的那些坑',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><link rel="stylesheet" href="/css/painting.css"><link rel="stylesheet" href="/css/transition.css?v=1"><meta name="generator" content="Hexo 8.1.2"></head><body><script>window.paceOptions = {
+  restartOnPushState: false
+}
+
+btf.addGlobalFn('pjaxSend', () => {
+  Pace.restart()
+}, 'pace_restart')
+
+</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/themes/blue/pace-theme-minimal.min.css"/><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><div class="bg-animation" id="web_bg" style="background-image: url(/img/sea.gif);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">21</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">33</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/art/monet-waterlilies-1917.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">听雨</span></a><a class="nav-page-title" href="/"><span class="site-name">博客后台开发 02：frontmatter 序列化的那些坑</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">博客后台开发 02：frontmatter 序列化的那些坑</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-18T16:40:00.000Z" title="发表于 2026-10-18 16:40:00">2026-10-18</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-20T09:12:23.431Z" title="更新于 2026-10-20 09:12:23">2026-10-20</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E5%AD%A6%E4%B9%A0/">技术学习</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><!-- toc -->
+<h1 id="序列化：为什么它是整个后台最难的一块"><a href="#序列化：为什么它是整个后台最难的一块" class="headerlink" title="序列化：为什么它是整个后台最难的一块"></a>序列化：为什么它是整个后台最难的一块</h1><p>上一篇讲了后台的整体结构和各个模块怎么实现。其中有一块我单独拎出来讲，因为它<strong>和我的博客无关，任何写 Hexo 工具的人都可能踩到</strong>，而且踩到的表现极其隐蔽：文件看起来完全正常，文章也能正常显示，但<strong>发布时间悄悄变了</strong>。</p>
+<p>这一篇讲 frontmatter 的解析与序列化：一个后台要在「表单里的字段」和「磁盘上的 YAML 文本」之间来回转换，这件事听起来是十行代码的工作，实际上是整个项目里最容易写错的地方。</p>
+<p>先看我们要处理的东西：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">---</span><br><span class="line">title: 深入剖析 Redis 底层原理</span><br><span class="line">date: 2026-10-18 14:30:00</span><br><span class="line">categories: 技术学习</span><br><span class="line">tags: [Hexo, Node.js]</span><br><span class="line"><span class="section">cover: /img/art/monet-waterlilies-sunset.jpg</span></span><br><span class="line"><span class="section">---</span></span><br><span class="line"></span><br><span class="line">正文从这里开始。</span><br></pre></td></tr></table></figure>
+
+<p>看起来人畜无害。但下面要讲的每一类问题，都藏在这六行里。</p>
+<h1 id="坑一：YAML-时间戳的-UTC-陷阱"><a href="#坑一：YAML-时间戳的-UTC-陷阱" class="headerlink" title="坑一：YAML 时间戳的 UTC 陷阱"></a>坑一：YAML 时间戳的 UTC 陷阱</h1><h2 id="现象"><a href="#现象" class="headerlink" title="现象"></a>现象</h2><p>YAML 规范里，<code>2026-10-18 14:30:00</code> 这种格式是一个 <strong>timestamp 类型</strong>。<code>js-yaml</code> 解析它时不会给你一个字符串，而是给你一个 JavaScript <code>Date</code> 对象：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">yaml.<span class="title function_">load</span>(<span class="string">&#x27;date: 2026-10-18 14:30:00&#x27;</span>).<span class="property">date</span> <span class="keyword">instanceof</span> <span class="title class_">Date</span></span><br><span class="line"><span class="comment">// → true</span></span><br><span class="line">yaml.<span class="title function_">load</span>(<span class="string">&#x27;date: 2026-10-18 14:30:00&#x27;</span>).<span class="property">date</span>.<span class="title function_">toISOString</span>()</span><br><span class="line"><span class="comment">// → &#x27;2026-10-18T14:30:00.000Z&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>注意那个 <code>Z</code>。<strong>YAML 的 timestamp 没有时区标注时，按 UTC 解释。</strong> 而文件里写的 <code>14:30</code>，我写的时候心里想的是东八区的 14:30。</p>
+<p>这就是第一个坑的入口：<strong>文件里没有任何信息能区分「UTC 的 14:30」和「东八区的 14:30」。</strong> 你以为它带时区，其实不带。</p>
+<h2 id="为什么它会静默改变发布时间"><a href="#为什么它会静默改变发布时间" class="headerlink" title="为什么它会静默改变发布时间"></a>为什么它会静默改变发布时间</h2><p>现在看保存路径。如果我在序列化时把日期写成带引号的形式：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">date:</span> <span class="string">&#x27;2026-10-18 14:30:00&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>再解析回来，得到的就是<strong>字符串</strong> <code>&quot;2026-10-18 14:30:00&quot;</code>，不再是 <code>Date</code>。</p>
+<p>而 Hexo 对这两种类型的时间处理是不同的——<strong>字符串走本地时区解析，<code>Date</code> 对象直接用</strong>。于是同一份文件，一次保存后文章的发布时间就可能被挪动 8 小时，进而改变它在本月归档里的排序位置，甚至从「今天」变成「昨天」。</p>
+<p>这类 bug 极难发现，因为：</p>
+<ul>
+<li>文件内容「看起来」没变，只是多了引号</li>
+<li>文章能正常渲染</li>
+<li>只有日期跨了边界时，排序才错乱</li>
+</ul>
+<h2 id="出口必须统一"><a href="#出口必须统一" class="headerlink" title="出口必须统一"></a>出口必须统一</h2><p>所以规则很明确：<strong>不管传进来的是 <code>Date</code> 还是字符串，出口永远统一成不带引号的 UTC 时间戳。</strong></p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// admin/lib/frontmatter.js</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">stringify</span>(<span class="params">data, content</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> src = &#123; ...(data || &#123;&#125;) &#125;;</span><br><span class="line">  <span class="comment">// 无论调用方传的是 Date 还是字符串，date 一律输出为未加引号的 UTC 时间戳，</span></span><br><span class="line">  <span class="comment">// 否则 js-yaml 会把它读成字符串，Hexo 的时间语义随之改变。</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="string">&#x27;date&#x27;</span> <span class="keyword">in</span> src) &#123;</span><br><span class="line">    <span class="keyword">const</span> d = <span class="title function_">toDate</span>(src.<span class="property">date</span>);</span><br><span class="line">    <span class="keyword">if</span> (d) src.<span class="property">date</span> = d;</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">delete</span> src.<span class="property">date</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>配套的 <code>toDate</code> 必须<strong>按 UTC 分量重建</strong>，否则又要掉进同一个坑：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">toDate</span>(<span class="params">value</span>) &#123;</span><br><span class="line">  <span class="keyword">if</span> (value <span class="keyword">instanceof</span> <span class="title class_">Date</span>) <span class="keyword">return</span> <span class="built_in">isNaN</span>(value) ? <span class="literal">null</span> : value;</span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> value === <span class="string">&#x27;number&#x27;</span>) <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">Date</span>(value);</span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> value === <span class="string">&#x27;string&#x27;</span>) &#123;</span><br><span class="line">    <span class="keyword">const</span> s = value.<span class="title function_">trim</span>();</span><br><span class="line">    <span class="keyword">const</span> m = <span class="regexp">/^(\d&#123;4&#125;)-(\d&#123;1,2&#125;)-(\d&#123;1,2&#125;)[ T](\d&#123;1,2&#125;):(\d&#123;1,2&#125;)(?::(\d&#123;1,2&#125;))?/</span>.<span class="title function_">exec</span>(s);</span><br><span class="line">    <span class="keyword">if</span> (m) &#123;</span><br><span class="line">      <span class="comment">// 关键：用 Date.UTC 重建，而不是 new Date(s)</span></span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">Date</span>(<span class="title class_">Date</span>.<span class="title function_">UTC</span>(+m[<span class="number">1</span>], +m[<span class="number">2</span>] - <span class="number">1</span>, +m[<span class="number">3</span>], +m[<span class="number">4</span>], +m[<span class="number">5</span>], +(m[<span class="number">6</span>] || <span class="number">0</span>)));</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">const</span> d = <span class="keyword">new</span> <span class="title class_">Date</span>(s);</span><br><span class="line">    <span class="keyword">if</span> (!<span class="built_in">isNaN</span>(d)) <span class="keyword">return</span> d;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里的区别很要命：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">new</span> <span class="title class_">Date</span>(<span class="string">&#x27;2026-10-18 14:30:00&#x27;</span>).<span class="title function_">toISOString</span>()</span><br><span class="line"><span class="comment">// 取决于运行环境时区，东八区下是 &#x27;2026-10-18T06:30:00.000Z&#x27;</span></span><br><span class="line"><span class="title class_">Date</span>.<span class="title function_">UTC</span>(<span class="number">2026</span>, <span class="number">9</span>, <span class="number">18</span>, <span class="number">14</span>, <span class="number">30</span>, <span class="number">0</span>)</span><br><span class="line"><span class="comment">// 永远是 &#x27;2026-10-18T14:30:00.000Z&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>如果用 <code>new Date(s)</code>，<strong>同一份代码在不同机器上会产出不同结果</strong>。而这个后台是可能在一台没配过时区的机器上跑的。</p>
+<p>输出时也必须用 UTC 分量，不能用本地分量：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title function_">dateText</span>(<span class="params">date</span>) &#123;</span><br><span class="line">  <span class="keyword">return</span> <span class="string">`<span class="subst">$&#123;date.getUTCFullYear()&#125;</span>-<span class="subst">$&#123;pad(date.getUTCMonth() + <span class="number">1</span>)&#125;</span>-<span class="subst">$&#123;pad(date.getUTCDate())&#125;</span> `</span> +</span><br><span class="line">    <span class="string">`<span class="subst">$&#123;pad(date.getUTCHours())&#125;</span>:<span class="subst">$&#123;pad(date.getUTCMinutes())&#125;</span>:<span class="subst">$&#123;pad(date.getUTCSeconds())&#125;</span>`</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>一个细节：这里<strong>不去掉秒</strong>。有些工具习惯输出 <code>2026-10-18 14:30:00</code>，有些输出 <code>2026-10-18 14:30</code>。两者 Hexo 都能解析，但只要你的工具反复保存同一篇文章，秒的缺失就会导致每次保存文件都变一次——这会持续污染 git 历史。</p>
+<h1 id="坑二：yaml-dump-不可控"><a href="#坑二：yaml-dump-不可控" class="headerlink" title="坑二：yaml.dump 不可控"></a>坑二：yaml.dump 不可控</h1><p>最直接的想法是 <code>yaml.dump(data)</code>。它当然能输出合法 YAML，但有四个我无法接受的地方：</p>
+<ol>
+<li><strong>会把字符串形式的日期加引号</strong>（正是坑一要避免的）</li>
+<li><strong>键顺序随对象插入顺序变化</strong>——表单字段顺序和文件里原有顺序不一致时，每次保存都会重排整个 frontmatter</li>
+<li><code>null</code> 和空数组的表示方式不符合常见写法（<code>null</code> &#x2F; <code>[]</code> 混杂）</li>
+<li>长字符串会被折行（<code>lineWidth</code> 默认 80）</li>
+</ol>
+<p>所以我写了一个专用的序列化器，163 行，规则完全自己定。核心是这个函数：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 判断一个字符串能否「裸着」放进 YAML</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">isPlainSafe</span>(<span class="params">s</span>) &#123;</span><br><span class="line">  <span class="keyword">if</span> (s === <span class="string">&#x27;&#x27;</span>) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^\s|\s$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;                        <span class="comment">// 前后空白</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/[\x00-\x1f\x7f]/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;                <span class="comment">// 控制字符</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^[-?:,[\]&#123;&#125;#&amp;*!|&gt;&#x27;&quot;%@`=]/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;        <span class="comment">// 起始指示符</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/:\s/</span>.<span class="title function_">test</span>(s) || <span class="regexp">/\s#/</span>.<span class="title function_">test</span>(s) || <span class="regexp">/:$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^(true|false|null|yes|no|on|off|~)$/i</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^[-+]?(\d[\d_]*(\.[\d_]*)?([eE][-+]?\d+)?|\.\d+)$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^0[xXbBoO][0-9a-fA-F_]+$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="comment">// 纯日期样式的字符串会被 js-yaml 反序列化成 Date，必须加引号</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^\d&#123;4&#125;-\d&#123;1,2&#125;-\d&#123;1,2&#125;([T ].*)?$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这十行是全文最值得抄走的一段。它解决的是一个问题：<strong>一个字符串在什么情况下会被 YAML「误解」成别的类型。</strong></p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>裸着写会变成</th>
+<th>真实场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>以 <code>#</code> 开头</td>
+<td>注释</td>
+<td>标题写成 <code># 标题</code></td>
+</tr>
+<tr>
+<td>以 <code>-</code> 开头</td>
+<td>序列</td>
+<td>标签写成 <code>-教程</code></td>
+</tr>
+<tr>
+<td>以 <code>:</code> 开头</td>
+<td>映射</td>
+<td>副标题写成 <code>: 备注</code></td>
+</tr>
+<tr>
+<td>等于 <code>true</code>&#x2F;<code>yes</code>&#x2F;<code>no</code></td>
+<td>布尔</td>
+<td>标签就叫 <code>no</code></td>
+</tr>
+<tr>
+<td>长得像数字</td>
+<td>数字</td>
+<td>分类叫 <code>2026</code></td>
+</tr>
+<tr>
+<td><code>0x</code> 开头</td>
+<td>十六进制</td>
+<td>标签叫 <code>0xFF</code></td>
+</tr>
+<tr>
+<td>长得像日期</td>
+<td><code>Date</code></td>
+<td><strong>封面路径写成 <code>2026-01-01</code></strong></td>
+</tr>
+</tbody></table>
+<p>最后一条尤其隐蔽，它本来是个合法的图片路径，却因为长得像日期而类型漂移。</p>
+<p>所以整个函数的策略是：<strong>宁可多加引号，绝不产生类型歧义。</strong> 多余的引号不会破坏任何东西，错误的类型会。</p>
+<h1 id="坑三：字符串的类型漂移"><a href="#坑三：字符串的类型漂移" class="headerlink" title="坑三：字符串的类型漂移"></a>坑三：字符串的类型漂移</h1><p><code>isPlainSafe</code> 是防御性的第一道，但真正的问题在于<strong>你怎么知道自己没漏掉一类</strong>。</p>
+<p>有个办法可以把这件事变得可验证：<strong>对每个字段做一次「往返类型检查」</strong>——把当前值裸着写回 YAML，再读回来，看类型变没变。</p>
+<p>这个脚本不需要任何依赖，可以直接放进自己的 Hexo 博客跑一遍：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// check-frontmatter.js  放在博客根目录：node check-frontmatter.js</span></span><br><span class="line"><span class="keyword">const</span> fs = <span class="built_in">require</span>(<span class="string">&#x27;fs&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> path = <span class="built_in">require</span>(<span class="string">&#x27;path&#x27;</span>);</span><br><span class="line"><span class="keyword">const</span> yaml = <span class="built_in">require</span>(<span class="string">&#x27;js-yaml&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">isPlainSafe</span>(<span class="params">s</span>) &#123;</span><br><span class="line">  <span class="keyword">if</span> (s === <span class="string">&#x27;&#x27;</span>) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^\s|\s$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/[\x00-\x1f\x7f]/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^[-?:,[\]&#123;&#125;#&amp;*!|&gt;&#x27;&quot;%@`=]/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/:\s/</span>.<span class="title function_">test</span>(s) || <span class="regexp">/\s#/</span>.<span class="title function_">test</span>(s) || <span class="regexp">/:$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^(true|false|null|yes|no|on|off|~)$/i</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^[-+]?(\d[\d_]*(\.[\d_]*)?([eE][-+]?\d+)?|\.\d+)$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^0[xXbBoO][0-9a-fA-F_]+$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">if</span> (<span class="regexp">/^\d&#123;4&#125;-\d&#123;1,2&#125;-\d&#123;1,2&#125;([T ].*)?$/</span>.<span class="title function_">test</span>(s)) <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">  <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 读出 frontmatter。逐行判断围栏，正文里的 --- 分隔线不会被误认为结束围栏</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">parse</span>(<span class="params">raw</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> lines = <span class="title class_">String</span>(raw).<span class="title function_">replace</span>(<span class="regexp">/^\uFEFF/</span>, <span class="string">&#x27;&#x27;</span>).<span class="title function_">split</span>(<span class="regexp">/\r?\n/</span>);</span><br><span class="line">  <span class="keyword">if</span> (lines[<span class="number">0</span>].<span class="title function_">trim</span>() !== <span class="string">&#x27;---&#x27;</span>) <span class="keyword">return</span> &#123;&#125;;</span><br><span class="line">  <span class="keyword">let</span> end = -<span class="number">1</span>;</span><br><span class="line">  <span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">1</span>; i &lt; lines.<span class="property">length</span>; i++) &#123;</span><br><span class="line">    <span class="keyword">const</span> t = lines[i].<span class="title function_">trim</span>();</span><br><span class="line">    <span class="keyword">if</span> (t === <span class="string">&#x27;---&#x27;</span> || t === <span class="string">&#x27;...&#x27;</span>) &#123; end = i; <span class="keyword">break</span>; &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">if</span> (end === -<span class="number">1</span>) <span class="keyword">return</span> &#123;&#125;;</span><br><span class="line">  <span class="keyword">return</span> yaml.<span class="title function_">load</span>(lines.<span class="title function_">slice</span>(<span class="number">1</span>, end).<span class="title function_">join</span>(<span class="string">&#x27;\n&#x27;</span>)) || &#123;&#125;;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> dir = path.<span class="title function_">join</span>(__dirname, <span class="string">&#x27;source&#x27;</span>, <span class="string">&#x27;_posts&#x27;</span>);</span><br><span class="line"><span class="keyword">let</span> checked = <span class="number">0</span>;</span><br><span class="line"><span class="keyword">let</span> risky = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> (<span class="keyword">const</span> name <span class="keyword">of</span> fs.<span class="title function_">readdirSync</span>(dir)) &#123;</span><br><span class="line">  <span class="keyword">if</span> (!name.<span class="title function_">endsWith</span>(<span class="string">&#x27;.md&#x27;</span>)) <span class="keyword">continue</span>;</span><br><span class="line">  <span class="keyword">const</span> data = <span class="title function_">parse</span>(fs.<span class="title function_">readFileSync</span>(path.<span class="title function_">join</span>(dir, name), <span class="string">&#x27;utf8&#x27;</span>));</span><br><span class="line">  checked++;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (<span class="keyword">const</span> [key, value] <span class="keyword">of</span> <span class="title class_">Object</span>.<span class="title function_">entries</span>(data)) &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">const</span> v <span class="title function_">of</span> (<span class="title class_">Array</span>.<span class="title function_">isArray</span>(value) ? value : [value])) &#123;</span><br><span class="line">      <span class="keyword">if</span> (<span class="keyword">typeof</span> v !== <span class="string">&#x27;string&#x27;</span> || <span class="title function_">isPlainSafe</span>(v)) <span class="keyword">continue</span>;</span><br><span class="line">      <span class="comment">// 关键一步：裸着写回去，看它变成什么</span></span><br><span class="line">      <span class="keyword">const</span> after = yaml.<span class="title function_">load</span>(key + <span class="string">&#x27;: &#x27;</span> + v)[key];</span><br><span class="line">      <span class="keyword">const</span> kind = after <span class="keyword">instanceof</span> <span class="title class_">Date</span> ? <span class="string">&#x27;Date&#x27;</span> : <span class="keyword">typeof</span> after;</span><br><span class="line">      <span class="keyword">if</span> (kind !== <span class="string">&#x27;string&#x27;</span>) &#123;</span><br><span class="line">        risky++;</span><br><span class="line">        <span class="variable language_">console</span>.<span class="title function_">log</span>(name + <span class="string">&#x27;  &#x27;</span> + key + <span class="string">&#x27; = &#x27;</span> + <span class="title class_">JSON</span>.<span class="title function_">stringify</span>(v) + <span class="string">&#x27;  →  &#x27;</span> + kind);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;\n检查 &#x27;</span> + checked + <span class="string">&#x27; 篇，发现 &#x27;</span> + risky + <span class="string">&#x27; 处会漂移的字段&#x27;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>在我的博客上跑，输出是 <code>检查 18 篇，发现 0 处会漂移的字段</code>。如果你的博客有输出，那些就是<strong>现在正躺着的、等着某个工具把它们改坏的字段</strong>——现在给它们补上引号，成本是几分钟；等到工具保存过一次之后再去修，git 历史已经被污染了。</p>
+<h1 id="坑四：正文里的-—-不能当结束围栏"><a href="#坑四：正文里的-—-不能当结束围栏" class="headerlink" title="坑四：正文里的 — 不能当结束围栏"></a>坑四：正文里的 — 不能当结束围栏</h1><p>解析 frontmatter 时，一个很容易犯的错误是「找到下一个 <code>---</code> 就结束」。但正文里出现 <code>---</code> 太常见了——它本身就是 Markdown 的分隔线用法。</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">---</span><br><span class="line"><span class="section">title: 标题</span></span><br><span class="line"><span class="section">---</span></span><br><span class="line"></span><br><span class="line"><span class="section">正文</span></span><br><span class="line"><span class="section">---</span></span><br><span class="line"></span><br><span class="line">分隔线</span><br></pre></td></tr></table></figure>
+
+<p>按「下一个 —」来解析，第二行 <code>---</code> 之前只有 <code>title</code>，第三行空行之后的内容会被错误地当成 YAML 的一部分，直接抛解析错误。</p>
+<p>所以必须<strong>逐行扫描</strong>，而且要接受 <code>...</code>（YAML 里表示文档结束的标记）：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> end = -<span class="number">1</span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="keyword">let</span> i = <span class="number">1</span>; i &lt; lines.<span class="property">length</span>; i++) &#123;</span><br><span class="line">  <span class="keyword">const</span> t = lines[i].<span class="title function_">trim</span>();</span><br><span class="line">  <span class="keyword">if</span> (t === <span class="string">&#x27;---&#x27;</span> || t === <span class="string">&#x27;...&#x27;</span>) &#123; end = i; <span class="keyword">break</span>; &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> (end === -<span class="number">1</span>) &#123;</span><br><span class="line">  <span class="keyword">return</span> &#123; <span class="attr">data</span>: &#123;&#125;, <span class="attr">content</span>: text, <span class="attr">error</span>: <span class="string">&#x27;frontmatter 缺少结束围栏 ---&#x27;</span> &#125;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>另外一个细节：<strong>只去掉围栏后紧随其后的那一个分隔空行，正文其余部分原样保留。</strong></p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 只去掉围栏后紧随其后的那一个分隔空行，正文其余部分（含尾部换行）原样保留</span></span><br><span class="line"><span class="keyword">let</span> content = lines.<span class="title function_">slice</span>(end + <span class="number">1</span>).<span class="title function_">join</span>(<span class="string">&#x27;\n&#x27;</span>);</span><br><span class="line"><span class="keyword">if</span> (content.<span class="title function_">startsWith</span>(<span class="string">&#x27;\n&#x27;</span>)) content = content.<span class="title function_">slice</span>(<span class="number">1</span>);</span><br></pre></td></tr></table></figure>
+
+<p>如果写成 <code>content.trim()</code>，就会连带吃掉正文开头的缩进和结尾的换行。这直接影响幂等性，后面会讲。</p>
+<h1 id="坑五：键顺序与未知字段"><a href="#坑五：键顺序与未知字段" class="headerlink" title="坑五：键顺序与未知字段"></a>坑五：键顺序与未知字段</h1><p>序列化时有个容易忽略的问题：<strong>文件里可能有你的表单里根本没有的字段。</strong></p>
+<p>我的博客里有篇文章用了 <code>top_img</code>，还有几篇用了 <code>description</code>。如果序列化时只输出表单认识的字段，这些值就在第一次保存时被静默删掉了——而且<strong>不会有任何报错</strong>，只是文章的行为变了（比如顶部图片没了）。</p>
+<p>解决办法是保留未知字段，按原顺序追加：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/** 表单字段优先输出，其余字段按原文件中的顺序追加，保证未知字段不丢失。 */</span></span><br><span class="line"><span class="keyword">const</span> <span class="variable constant_">KEY_ORDER</span> = [</span><br><span class="line">  <span class="string">&#x27;title&#x27;</span>, <span class="string">&#x27;date&#x27;</span>, <span class="string">&#x27;categories&#x27;</span>, <span class="string">&#x27;tags&#x27;</span>,</span><br><span class="line">  <span class="string">&#x27;cover&#x27;</span>, <span class="string">&#x27;description&#x27;</span>, <span class="string">&#x27;series&#x27;</span>,</span><br><span class="line">  <span class="string">&#x27;top_img&#x27;</span>, <span class="string">&#x27;type&#x27;</span></span><br><span class="line">];</span><br><span class="line"></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">orderKeys</span>(<span class="params">data</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> keys = <span class="title class_">Object</span>.<span class="title function_">keys</span>(data).<span class="title function_">filter</span>(<span class="function">(<span class="params">k</span>) =&gt;</span> data[k] !== <span class="literal">undefined</span>);</span><br><span class="line">  <span class="keyword">const</span> ordered = <span class="variable constant_">KEY_ORDER</span>.<span class="title function_">filter</span>(<span class="function">(<span class="params">k</span>) =&gt;</span> keys.<span class="title function_">includes</span>(k));</span><br><span class="line">  <span class="keyword">const</span> rest = keys.<span class="title function_">filter</span>(<span class="function">(<span class="params">k</span>) =&gt;</span> !ordered.<span class="title function_">includes</span>(k));</span><br><span class="line">  <span class="keyword">return</span> ordered.<span class="title function_">concat</span>(rest);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意 <code>KEY_ORDER</code> 里包含 <code>description</code>、<code>top_img</code>、<code>type</code>——<strong>即使表单暂时不做这些字段</strong>，也要先在顺序表里占位。因为「保留未知字段」的能力，依赖于「已知字段」这个集合本身是可扩展的。</p>
+<p>还有一个边角：<code>tags:</code> 后面什么都不写，YAML 里解析出来是 <code>null</code>。如果原样输出，下次保存就会变成 <code>tags: []</code>，多一次无意义 diff：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 历史上存在 `tags:` 后面什么都不写的写法，统一输出为 []</span></span><br><span class="line">lines.<span class="title function_">push</span>(<span class="string">`<span class="subst">$&#123;indent&#125;</span><span class="subst">$&#123;key&#125;</span>: <span class="subst">$&#123;key === <span class="string">&#x27;tags&#x27;</span> &amp;&amp; value === <span class="literal">null</span> ? <span class="string">&#x27;[]&#x27;</span> : scalarText(value)&#125;</span>`</span>);</span><br></pre></td></tr></table></figure>
+
+<p>以及复杂结构（嵌套对象、含对象的数组）直接交给 <code>yaml.dump</code>，不自己拼：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 复杂结构（嵌套对象 / 含对象的数组）交给 js-yaml，保证输出合法</span></span><br><span class="line"><span class="keyword">const</span> dumped = yaml</span><br><span class="line">  .<span class="title function_">dump</span>(&#123; [key]: value &#125;, &#123; <span class="attr">lineWidth</span>: -<span class="number">1</span>, <span class="attr">noRefs</span>: <span class="literal">true</span>, <span class="attr">sortKeys</span>: <span class="literal">false</span> &#125;)</span><br><span class="line">  .<span class="title function_">trimEnd</span>();</span><br></pre></td></tr></table></figure>
+
+<p><code>noRefs: true</code> 避免同一个对象被第二次引用时输出 <code>&amp;ref0</code> &#x2F; <code>*ref0</code> 这种锚点语法——Hexo 能解析，但人看着难受。<code>sortKeys: false</code> 保证嵌套结构的键顺序不被重排。</p>
+<h1 id="幂等：比「内容没变」更严格的要求"><a href="#幂等：比「内容没变」更严格的要求" class="headerlink" title="幂等：比「内容没变」更严格的要求"></a>幂等：比「内容没变」更严格的要求</h1><p>写完解析和序列化，我给自己定的验收标准不是「保存后再打开，内容没变」——那太宽松了。<strong>格式归一</strong>（BOM、尾部空行、引号）会造成字节不同，而语义必须完全一致。所以是三个判据：</p>
+<ol>
+<li><strong>frontmatter 解析后深度相等</strong>（忽略键顺序）</li>
+<li><strong>正文相等</strong>（归一化 BOM 与尾部空白后）</li>
+<li><strong>幂等</strong>：再存一次，输出必须<strong>逐字节相同</strong></li>
+</ol>
+<p>第三条最关键。如果序列化不幂等，意味着每点一次保存文件就变一次，git 历史会被垃圾提交淹没——一年下来你的 <code>git log</code> 里全是「update via admin」，完全无法审查。</p>
+<p>我最初的实现有 5 篇文章没能通过第三项。查下来是<strong>围栏后空行和文末换行的处理不一致</strong>——有的文章围栏后有空行、有的没有，而我的归一逻辑对这两种情况的处理结果不一致。</p>
+<p>最终的输出格式固定成这一种：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> yamlPart = lines.<span class="property">length</span> ? lines.<span class="title function_">join</span>(<span class="string">&#x27;\n&#x27;</span>) + <span class="string">&#x27;\n&#x27;</span> : <span class="string">&#x27;&#x27;</span>;</span><br><span class="line"><span class="comment">// 围栏后恒定一个空行、文末恒定一个换行：既符合常见 Markdown 排版，也让序列化完全幂等</span></span><br><span class="line"><span class="keyword">const</span> body = <span class="title class_">String</span>(content == <span class="literal">null</span> ? <span class="string">&#x27;&#x27;</span> : content).<span class="title function_">replace</span>(<span class="regexp">/\s+$/</span>, <span class="string">&#x27;&#x27;</span>) + <span class="string">&#x27;\n&#x27;</span>;</span><br><span class="line"><span class="keyword">return</span> <span class="string">&#x27;---\n&#x27;</span> + yamlPart + <span class="string">&#x27;---\n\n&#x27;</span> + body;</span><br></pre></td></tr></table></figure>
+
+<p>四个「恒定」：围栏后<strong>恒定</strong>一个空行、正文结尾空白<strong>恒定</strong>被剥掉、文末<strong>恒定</strong>一个换行、换行符<strong>恒定</strong>是 <code>\n</code>（不是 <code>\r\n</code>）。最后一条在 Windows 上尤其重要——不显式归一，Windows 上保存的文件会比 Linux 上多出回车符，导致跨平台协作时反复产生 diff。</p>
+<p><strong>「恒定」这个词是幂等的本质。</strong> 不是「尽量保持原样」，而是「不管输入长什么样，输出都一样」。这两个目标在第一次保存时没有区别，到第十次就天差地别。</p>
+<h1 id="自查：给你的博客跑一遍"><a href="#自查：给你的博客跑一遍" class="headerlink" title="自查：给你的博客跑一遍"></a>自查：给你的博客跑一遍</h1><p>如果要验证自己的工具，判据三可以直接这么写：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 幂等检查：对每篇文章连续 stringify 两次，两次结果必须完全相同</span></span><br><span class="line"><span class="keyword">const</span> once = fm.<span class="title function_">stringify</span>(fm.<span class="title function_">parse</span>(raw).<span class="property">data</span>, fm.<span class="title function_">parse</span>(raw).<span class="property">content</span>);</span><br><span class="line"><span class="keyword">const</span> twice = fm.<span class="title function_">stringify</span>(fm.<span class="title function_">parse</span>(once).<span class="property">data</span>, fm.<span class="title function_">parse</span>(once).<span class="property">content</span>);</span><br><span class="line"><span class="keyword">if</span> (once !== twice) &#123;</span><br><span class="line">  <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;不幂等: &#x27;</span> + name);</span><br><span class="line">  <span class="comment">// 打印第一处差异的位置，比打印两个完整文件有用得多</span></span><br><span class="line">  <span class="keyword">let</span> i = <span class="number">0</span>;</span><br><span class="line">  <span class="keyword">while</span> (i &lt; once.<span class="property">length</span> &amp;&amp; once[i] === twice[i]) i++;</span><br><span class="line">  <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;  首个差异在第 &#x27;</span> + i + <span class="string">&#x27; 字节&#x27;</span>);</span><br><span class="line">  <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;  一次: &#x27;</span> + <span class="title class_">JSON</span>.<span class="title function_">stringify</span>(once.<span class="title function_">slice</span>(<span class="title class_">Math</span>.<span class="title function_">max</span>(<span class="number">0</span>, i - <span class="number">20</span>), i + <span class="number">20</span>)));</span><br><span class="line">  <span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&#x27;  二次: &#x27;</span> + <span class="title class_">JSON</span>.<span class="title function_">stringify</span>(twice.<span class="title function_">slice</span>(<span class="title class_">Math</span>.<span class="title function_">max</span>(<span class="number">0</span>, i - <span class="number">20</span>), i + <span class="number">20</span>)));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>打印<strong>第一个差异的字节位置和上下文</strong>，而不是两个完整文件的 diff——14 篇文章的完整 diff 你根本读不完，但「第 340 字节处开始不同」你一眼就能定位。</p>
+<h1 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h1><ol>
+<li><strong>YAML 未加引号的时间戳按 UTC 解释</strong>，读写都要用 UTC 分量，别用 <code>new Date(string)</code>。</li>
+<li><strong>不要用 <code>yaml.dump</code> 做正文 frontmatter</strong>，它会重排键、加引号、折行。</li>
+<li><strong>字符串的「裸着安全」是一张可枚举的清单</strong>，抄走那十行 <code>isPlainSafe</code> 就能覆盖绝大部分。</li>
+<li><strong>用「往返类型检查」把防御变成可验证的</strong>，而不是靠人肉想「还有没有漏的」。</li>
+<li><strong>解析要逐行找围栏</strong>，正文里的 <code>---</code> 是合法内容。</li>
+<li><strong>保留未知字段</strong>，否则表单不认识的字段会在第一次保存时静默消失。</li>
+<li><strong>幂等是硬要求</strong>，格式归一的四条「恒定」是实现它的前提。</li>
+</ol>
+<p>下一篇 03 讲部署链路——从前台点按钮到 GitHub Pages 上线，中间踩的坑比这一篇还多。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://Y3148y.github.io">听雨</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://y3148y.github.io/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/">https://y3148y.github.io/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://Y3148y.github.io" target="_blank">听雨</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Hexo/">Hexo</a><a class="post-meta__tags" href="/tags/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0/">博客后台</a><a class="post-meta__tags" href="/tags/YAML/">YAML</a><a class="post-meta__tags" href="/tags/%E5%BA%8F%E5%88%97%E5%8C%96/">序列化</a></div><div class="post-share"><div class="social-share" data-image="/img/art/monet-waterlilies-1917.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路"><img class="cover" src="/img/art/vangogh-poppy-field.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">博客后台开发 03：部署与 CI 的完整链路</div></div><div class="info-2"><div class="info-item-1"> 这条链路上发生什么前两篇讲的是后台本身。这一篇讲从「在浏览器里点保存」到「GitHub Pages 上的站点更新」之间发生的事。 这条链路不长，但它是整个项目里失败次数最多的部分。不是因为它复杂，而是因为它横跨了三个 Git 仓库、两套身份认证、以及一个我至今没有完全搞懂的 Bash 默认行为。 文章的顺序大致是失败发生的顺序：先讲清楚三个仓库怎么分工，再讲本地的三种发布模式，然后是 CI 上的四个坑，最后讲一个我自己引入又修掉的回归。 三个仓库的分工先把结构讲清楚，因为后面所有的权限问题都源于这里。    仓库 可见性 内容    Y3148y/my-blog 私密 文章、配置、后台代码、工作流定义   Y3148y/hexo-theme-butterfly 公开 主题定制（CI 从这里拉）   Y3148y/Y3148y.github.io 公开 只有产物：index.html、css/、js/   工作流为什么必须在有源码的仓库一个常见的误解是「Pages 仓库才是站点的工作目录，工作流当然放那里」。但那个仓库里没有源码——它的顶层条目全是构建产物，连 package.j...</div></div></div></a><a class="pagination-related" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现"><img class="cover" src="/img/art/monet-parasol-1875.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">博客后台开发 01：整体架构与核心实现</div></div><div class="info-2"><div class="info-item-1"> 这个系列在讲什么给自己的 Hexo 博客加一个只在本机运行的后台，把「写文章」从开终端变成开浏览器。这个系列共三篇：    篇 主题 适合谁    01（本文） 为什么这么做、每个模块怎么实现 想自己动手搭一个后台的人   02 frontmatter 序列化 任何要写 Hexo 工具的人   03 部署与 CI 用 GitHub Actions 发静态站的人   01 讲整体取舍和实现细节。02 和 03 各自可以独立阅读。 先说清楚这个后台不是什么：它不是 CMS，不是网站的一部分，也不是要替代 Hexo。它只是一个跑在本机的 Node 进程，通过 HTTP 提供一个网页界面，最终仍然产出标准的 Markdown 文件交给 Hexo。这一点决定了后面所有的设计。 为什么不用现成的 hexo-admin社区有个 hexo-admin，名字看起来正好干这件事。看它的依赖： 1234567&quot;dependencies&quot;: &#123;  &quot;hexo-front-matter&quot;: &quot;^0.2.2&quot;,  &quot;hexo-...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现"><img class="cover" src="/img/art/monet-parasol-1875.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-18</div><div class="info-item-2">博客后台开发 01：整体架构与核心实现</div></div><div class="info-2"><div class="info-item-1"> 这个系列在讲什么给自己的 Hexo 博客加一个只在本机运行的后台，把「写文章」从开终端变成开浏览器。这个系列共三篇：    篇 主题 适合谁    01（本文） 为什么这么做、每个模块怎么实现 想自己动手搭一个后台的人   02 frontmatter 序列化 任何要写 Hexo 工具的人   03 部署与 CI 用 GitHub Actions 发静态站的人   01 讲整体取舍和实现细节。02 和 03 各自可以独立阅读。 先说清楚这个后台不是什么：它不是 CMS，不是网站的一部分，也不是要替代 Hexo。它只是一个跑在本机的 Node 进程，通过 HTTP 提供一个网页界面，最终仍然产出标准的 Markdown 文件交给 Hexo。这一点决定了后面所有的设计。 为什么不用现成的 hexo-admin社区有个 hexo-admin，名字看起来正好干这件事。看它的依赖： 1234567&quot;dependencies&quot;: &#123;  &quot;hexo-front-matter&quot;: &quot;^0.2.2&quot;,  &quot;hexo-...</div></div></div></a><a class="pagination-related" href="/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/" title="给 Hexo 博客加一个本地写作后台"><img class="cover" src="/img/art/monet-waterlilies-sunset.jpg" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-18</div><div class="info-item-2">给 Hexo 博客加一个本地写作后台</div></div><div class="info-2"><div class="info-item-1"> 前言写博客这件事，Hexo 的门槛其实不在「写」，而在「发」。 文章是 Markdown，纯文本记事本就能写。但每次写完想上线，得打开终端、敲 hexo clean、等构建、再敲 hexo deploy。构建要十几秒，推送可能因为网络抖动失败，失败了还得看着 fatal: unable to access ... 猜原因。写作是连续的，发布是离散的，中间这段割裂感才是真正的成本。 所以我给自己的博客加了一个本地后台：浏览器里写，预览，保存，点一下按钮直接上线。 这篇文章记录这次实现的全过程——架构怎么定的、代码怎么组织的，以及踩了哪些坑。后者占的篇幅可能比前者还多，因为那几个坑里有几个挺典型的。 整体架构先说清楚边界。这个后台不是 CMS，不是网站的一部分，它是一个只在本机运行的 Node 进程，通过 HTTP 提供一个网页界面，最终仍然产出标准的 Markdown 文件交给 Hexo： 12345678910111213141516171819202122浏览器  http://127.0.0.1:4001/admin/   │  JSON over HTTP   ▼┌───...</div></div></div></a><a class="pagination-related" href="/2026/07/10/%E5%9F%BA%E4%BA%8EGithubPage%E5%92%8Chexo%E7%9A%84%E7%AE%80%E5%8D%95%E4%B8%AA%E4%BA%BA%E7%BD%91%E7%AB%99%E6%90%AD%E5%BB%BA%E6%95%99%E7%A8%8B/" title="基于 GithubPage 和 hexo 的简单个人网站搭建教程"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-10</div><div class="info-item-2">基于 GithubPage 和 hexo 的简单个人网站搭建教程</div></div><div class="info-2"><div class="info-item-1">前言个人博客效果展示：听雨 为什么要搭建个人博客平台？  无平台限制、永久属于自己：CSDN、掘金、公众号等平台，文章会被限流、删帖、收录受限，甚至账号封禁内容全无。个人博客是完全私有化的知识库，自己全权掌控。  零成本永久上线：无需购买服务器、无需域名费用、无需续费，GitHub Pages 终身免费托管，学生、新手零负担。  极简高颜值、可自由定制：告别平台统一模板，自定义壁纸、动效、看板娘、导航、页脚，打造专属个人IP主页。  助力学习与求职：记录编程、学习笔记、生活随笔，积累技术沉淀，求职时可作为个人作品集，大幅加分。   本文为零基础保姆级全套教程，无需代码基础、无需服务器，全程 Windows 通用。包含：环境安装→博客初始化→主题配置→全套炫酷美化→看板娘部署→页面搭建→博客写作规范→上线部署个人博客。 技术栈选型 选择 Hexo 静态博客框架，基于 Node.js 运行，全程配置化操作，无需手写代码，上手简单。  运行环境 Node.js + Git：Hexo 无法直接在电脑运行，没有环境就无法生成网站、无法安装插件、无法部署上线。支撑 Hexo 所有命令运行、插...</div></div></div></a><a class="pagination-related" href="/2026/09/02/Hexo-Butterfly%E4%BF%AE%E5%A4%8D%E6%96%87%E7%AB%A0%E5%8F%B3%E4%BE%A7%E7%9B%AE%E5%BD%95%E6%A0%8F%E6%B6%88%E5%A4%B1%E4%B8%8E%E4%B8%8D%E8%B7%9F%E9%9A%8F%E7%9A%84%E9%97%AE%E9%A2%98/" title="基于Butterfly的网站美化教程02：修复文章右侧目录栏消失与不跟随的问题"><img class="cover" src="/img/feild.webp" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-02</div><div class="info-item-2">基于Butterfly的网站美化教程02：修复文章右侧目录栏消失与不跟随的问题</div></div><div class="info-2"><div class="info-item-1">前言用 Hexo + Butterfly 主题写文章时发现两个问题：  目录栏消失：文章很长时，右侧目录栏随着页面一起向上滚动，很快就离开视口消失，无法固定在文章右侧。 目录不跟随：即使目录栏固定住了，往下读文章时目录列表也不会自动滚动定位到当前章节。  查资料、试了很多方案（改 CSS、写 JS、改模板……）都不行，最后终于找到病根。本文把这个正确的修复方法记录成一篇教程，希望能帮到遇到同样问题的人。  本文基于 Butterfly 主题（本项目版本 5.5.5），修复只需要改一行 CSS。  症状复现 文章 30000 多像素长 右侧栏有：作者卡、公告卡、目录卡、最新文章卡 滚动到中途，右侧栏整个滚出屏幕；即便固定住，目录也不跟着文章走  网上常见方案为什么不管用先说几个弯路，帮你避免浪费时间：    方案 结果    写 CSS 调 top 值 治标不治本   写 JS 监听滚动动态 fixed/sticky 布局错乱   把 TOC 移出 sticky_layout 改模板 破坏原有布局   给 .layout 加 align-items: flex-start 禁止 a...</div></div></div></a><a class="pagination-related" href="/2026/09/19/oil-painting-gallery-dev/" title="用 Python 和 Canvas 给博客搭一个油画画廊"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-19</div><div class="info-item-2">用 Python 和 Canvas 给博客搭一个油画画廊</div></div><div class="info-2"><div class="info-item-1">给 Hexo 博客做了个「AI 油画 + 裸眼 3D」画廊，前后端各一个模块，总共不到 500 行代码。这篇文章记录下实现思路。   整体架构123456789101112source/img/art/          ← 10 张莫奈 + 梵高原图       │       ▼tools/generate-oil.py    ← Python PIL 油画滤镜       │       ▼public/img/art/oil/      ← 10 张油画版（构建时生成）       │       ▼painting-engine.js       ← 前端：3D 视差 + Canvas 混合 + 滚动入场painting.css             ← 样式：深度层、油画 Canvas、降级art-gallery.js           ← Hexo tag：&#123;% art_gallery %&#125; 渲染卡片  数据驱动，加画只需要在 source/_data/art.yml 里加一行。  模块一：Python 油画滤镜123456789101112...</div></div></div></a><a class="pagination-related" href="/2026/07/13/%E5%9F%BA%E4%BA%8EButterfly%E7%9A%84%E7%BD%91%E7%AB%99%E7%BE%8E%E5%8C%96%E6%95%99%E7%A8%8B01/" title="基于Butterfly的网站美化教程01"><img class="cover" src="/img/feild.webp" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-13</div><div class="info-item-2">基于Butterfly的网站美化教程01</div></div><div class="info-2"><div class="info-item-1">前言在上一篇文章 基于 GithubPage 和 hexo 的简单个人网站搭建教程 我们已经初步搭建好了简单的博客网站，接下来我们开始试着丰富和美化这个网站。本文将介绍使用Gitcus增加网站评论区，增加菜单栏，修改图片布局。 评论技术选型主要有Waline（轻量级，评论无需登录，免费额度）,Gitalk（基于 GitHub Issue + Preact ）,Twikoo（腾讯云，有免费额度）,Giscus（GitHub 账号评论，评论存在仓库 Discussion）。本站采用了Giscus，因为前两种都没有成功(╥﹏╥)，Gitalk 存在网络卡顿问题，Vercel 站点访问超时。 Waline(Valine官方升级版)是 Valine 作者迭代的新版本，兼容 Valine 的使用习惯，支持匿名留言（昵称 + 邮箱即可），不用 GitHub 账号；国内 CDN 加速，访问稳定性远超 Gitalk免费部署在 Vercel，自带评论后台、邮件提醒、反垃圾评论，侧边栏最新评论卡片可适配。 登录 Vercel并创建项目打开 https://vercel.com/ ，使用你的 GitHu...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="giscus-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">听雨</div><div class="author-info-description">welcome to my little nut</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">21</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">33</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Y3148y"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/Y3148y" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="welcome-content" id="welcome-info"><b><center>🎉 欢迎信息 🎉</center>&emsp;&emsp;欢迎来到我的小站，正在识别你的位置…</b></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%BA%8F%E5%88%97%E5%8C%96%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E5%AE%83%E6%98%AF%E6%95%B4%E4%B8%AA%E5%90%8E%E5%8F%B0%E6%9C%80%E9%9A%BE%E7%9A%84%E4%B8%80%E5%9D%97"><span class="toc-number">1.</span> <span class="toc-text">序列化：为什么它是整个后台最难的一块</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%9D%91%E4%B8%80%EF%BC%9AYAML-%E6%97%B6%E9%97%B4%E6%88%B3%E7%9A%84-UTC-%E9%99%B7%E9%98%B1"><span class="toc-number">2.</span> <span class="toc-text">坑一：YAML 时间戳的 UTC 陷阱</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%8E%B0%E8%B1%A1"><span class="toc-number">2.1.</span> <span class="toc-text">现象</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E5%AE%83%E4%BC%9A%E9%9D%99%E9%BB%98%E6%94%B9%E5%8F%98%E5%8F%91%E5%B8%83%E6%97%B6%E9%97%B4"><span class="toc-number">2.2.</span> <span class="toc-text">为什么它会静默改变发布时间</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%87%BA%E5%8F%A3%E5%BF%85%E9%A1%BB%E7%BB%9F%E4%B8%80"><span class="toc-number">2.3.</span> <span class="toc-text">出口必须统一</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%9D%91%E4%BA%8C%EF%BC%9Ayaml-dump-%E4%B8%8D%E5%8F%AF%E6%8E%A7"><span class="toc-number">3.</span> <span class="toc-text">坑二：yaml.dump 不可控</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%9D%91%E4%B8%89%EF%BC%9A%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%9A%84%E7%B1%BB%E5%9E%8B%E6%BC%82%E7%A7%BB"><span class="toc-number">4.</span> <span class="toc-text">坑三：字符串的类型漂移</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%9D%91%E5%9B%9B%EF%BC%9A%E6%AD%A3%E6%96%87%E9%87%8C%E7%9A%84-%E2%80%94-%E4%B8%8D%E8%83%BD%E5%BD%93%E7%BB%93%E6%9D%9F%E5%9B%B4%E6%A0%8F"><span class="toc-number">5.</span> <span class="toc-text">坑四：正文里的 — 不能当结束围栏</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%9D%91%E4%BA%94%EF%BC%9A%E9%94%AE%E9%A1%BA%E5%BA%8F%E4%B8%8E%E6%9C%AA%E7%9F%A5%E5%AD%97%E6%AE%B5"><span class="toc-number">6.</span> <span class="toc-text">坑五：键顺序与未知字段</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%B9%82%E7%AD%89%EF%BC%9A%E6%AF%94%E3%80%8C%E5%86%85%E5%AE%B9%E6%B2%A1%E5%8F%98%E3%80%8D%E6%9B%B4%E4%B8%A5%E6%A0%BC%E7%9A%84%E8%A6%81%E6%B1%82"><span class="toc-number">7.</span> <span class="toc-text">幂等：比「内容没变」更严格的要求</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E8%87%AA%E6%9F%A5%EF%BC%9A%E7%BB%99%E4%BD%A0%E7%9A%84%E5%8D%9A%E5%AE%A2%E8%B7%91%E4%B8%80%E9%81%8D"><span class="toc-number">8.</span> <span class="toc-text">自查：给你的博客跑一遍</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%B0%8F%E7%BB%93"><span class="toc-number">9.</span> <span class="toc-text">小结</span></a></li></ol></div></div><div class="card-widget card-post-series"><div class="item-headline"><i class="fa-solid fa-layer-group"></i><span>系列文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 04：主题系统与护眼底色"></a><div class="content"><a class="title" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色">博客后台开发 04：主题系统与护眼底色</a><time datetime="2026-10-20T09:00:00.000Z" title="发表于 2026-10-20 09:00:00">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路"><img src="/img/art/vangogh-poppy-field.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 03：部署与 CI 的完整链路"></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路">博客后台开发 03：部署与 CI 的完整链路</a><time datetime="2026-10-18T18:00:00.000Z" title="发表于 2026-10-18 18:00:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑"><img src="/img/art/monet-waterlilies-1917.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 02：frontmatter 序列化的那些坑"></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑">博客后台开发 02：frontmatter 序列化的那些坑</a><time datetime="2026-10-18T16:40:00.000Z" title="发表于 2026-10-18 16:40:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现"><img src="/img/art/monet-parasol-1875.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 01：整体架构与核心实现"></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现">博客后台开发 01：整体架构与核心实现</a><time datetime="2026-10-18T15:20:00.000Z" title="发表于 2026-10-18 15:20:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/" title="给 Hexo 博客加一个本地写作后台"><img src="/img/art/monet-waterlilies-sunset.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="给 Hexo 博客加一个本地写作后台"></a><div class="content"><a class="title" href="/2026/10/18/%E7%BB%99%20Hexo%20%E5%8D%9A%E5%AE%A2%E5%8A%A0%E4%B8%80%E4%B8%AA%E6%9C%AC%E5%9C%B0%E5%86%99%E4%BD%9C%E5%90%8E%E5%8F%B0/" title="给 Hexo 博客加一个本地写作后台">给 Hexo 博客加一个本地写作后台</a><time datetime="2026-10-18T14:30:00.000Z" title="发表于 2026-10-18 14:30:00">2026-10-18</time></div></div></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/10/20/hello-world/" title="Hello World">Hello World</a><time datetime="2026-10-20T09:12:23.430Z" title="发表于 2026-10-20 09:12:23">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 04：主题系统与护眼底色"/></a><div class="content"><a class="title" href="/2026/10/20/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2004%EF%BC%9A%E4%B8%BB%E9%A2%98%E7%B3%BB%E7%BB%9F%E4%B8%8E%E6%8A%A4%E7%9C%BC%E5%BA%95%E8%89%B2/" title="博客后台开发 04：主题系统与护眼底色">博客后台开发 04：主题系统与护眼底色</a><time datetime="2026-10-20T09:00:00.000Z" title="发表于 2026-10-20 09:00:00">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路"><img src="/img/art/vangogh-poppy-field.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 03：部署与 CI 的完整链路"/></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2003%EF%BC%9A%E9%83%A8%E7%BD%B2%E4%B8%8E%20CI%20%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF/" title="博客后台开发 03：部署与 CI 的完整链路">博客后台开发 03：部署与 CI 的完整链路</a><time datetime="2026-10-18T18:00:00.000Z" title="发表于 2026-10-18 18:00:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑"><img src="/img/art/monet-waterlilies-1917.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 02：frontmatter 序列化的那些坑"/></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2002%EF%BC%9Afrontmatter%20%E5%BA%8F%E5%88%97%E5%8C%96%E7%9A%84%E9%82%A3%E4%BA%9B%E5%9D%91/" title="博客后台开发 02：frontmatter 序列化的那些坑">博客后台开发 02：frontmatter 序列化的那些坑</a><time datetime="2026-10-18T16:40:00.000Z" title="发表于 2026-10-18 16:40:00">2026-10-18</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现"><img src="/img/art/monet-parasol-1875.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 01：整体架构与核心实现"/></a><div class="content"><a class="title" href="/2026/10/18/%E5%8D%9A%E5%AE%A2%E5%90%8E%E5%8F%B0%E5%BC%80%E5%8F%91%2001%EF%BC%9A%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%E4%B8%8E%E6%A0%B8%E5%BF%83%E5%AE%9E%E7%8E%B0/" title="博客后台开发 01：整体架构与核心实现">博客后台开发 01：整体架构与核心实现</a><time datetime="2026-10-18T15:20:00.000Z" title="发表于 2026-10-18 15:20:00">2026-10-18</time></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(/img/sunrise.webp);"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 听雨</span></div><div class="footer_custom_text">你终于看到这里，希望你能天天开心</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.5"></script><script src="/js/main.js?v=5.5.5"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (false) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const getGiscusTheme = theme => theme === 'dark' ? 'dark' : 'light'
+
+  const createScriptElement = config => {
+    const ele = document.createElement('script')
+    Object.entries(config).forEach(([key, value]) => {
+      ele.setAttribute(key, value)
+    })
+    return ele
+  }
+
+  const loadGiscus = (el = document, key) => {
+    const mappingConfig = isShuoshuo
+      ? { 'data-mapping': 'specific', 'data-term': key }
+      : { 'data-mapping': (option && option['data-mapping']) || 'pathname' }
+
+    const giscusConfig = {
+      src: 'https://giscus.app/client.js',
+      'data-repo': 'Y3148y/my-blog-comments',
+      'data-repo-id': 'R_kgDOTV5zww',
+      'data-category-id': 'DIC_kwDOTV5zw84DBBql',
+      'data-theme': getGiscusTheme(document.documentElement.getAttribute('data-theme')),
+      'data-reactions-enabled': '1',
+      crossorigin: 'anonymous',
+      async: true,
+      ...option,
+      ...mappingConfig
+    }
+
+    const scriptElement = createScriptElement(giscusConfig)
+
+    el.querySelector('#giscus-wrap').appendChild(scriptElement)
+
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGiscus = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+  }
+
+  const changeGiscusTheme = theme => {
+    const iframe = document.querySelector('#giscus-wrap iframe')
+    if (iframe) {
+      const message = {
+        giscus: {
+          setConfig: {
+            theme: getGiscusTheme(theme)
+          }
+        }
+      }
+      iframe.contentWindow.postMessage(message, 'https://giscus.app')
+    }
+  }
+
+  btf.addGlobalFn('themeChange', changeGiscusTheme, 'giscus')
+
+  if (isShuoshuo) {
+    'Giscus' === 'Giscus'
+      ? window.shuoshuoComment = { loadComment: loadGiscus }
+      : window.loadOtherComment = loadGiscus
+    return
+  }
+
+  if ('Giscus' === 'Giscus' || !false) {
+    if (false) btf.loadComment(document.getElementById('giscus-wrap'), loadGiscus)
+    else loadGiscus()
+  } else {
+    window.loadOtherComment = loadGiscus
+  }
+})()</script></div><script defer src="/js/welcome.js"></script><script async src="/js/title.js"></script><script defer src="/js/global-player.js"></script><script defer src="/js/art-viewer.js"></script><script defer src="/js/painting-engine.js"></script><script defer src="/js/paint-scroll-transition.js?v=1"></script><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.5"></script></div></div><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"right","width":150,"height":300},"mobile":{"show":true},"react":{"opacity":1,"shadow":true},"log":false});</script></body></html>
