@@ -1,0 +1,1160 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>初识vLLM | 听雨</title><meta name="author" content="听雨"><meta name="copyright" content="听雨"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="前言当我们希望把一个开源模型部署为对外服务时，最先想到的往往是使用 HuggingFace 的 transformers 库加载模型，再对外提供 HTTP 接口。而在不增加 GPU 的前提下想要提升模型性能，vLLM 就充当了这样一个中间层——它位于大模型与硬件之间，帮助模型更充分地利用显存与算力。它的使用方式也非常简单，只需一行 vllm serve 命令，即可提供与 OpenAI 接口一致的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="初识vLLM">
+<meta property="og:url" content="https://y3148y.github.io/2026/10/20/vllm-intro/index.html">
+<meta property="og:site_name" content="听雨">
+<meta property="og:description" content="前言当我们希望把一个开源模型部署为对外服务时，最先想到的往往是使用 HuggingFace 的 transformers 库加载模型，再对外提供 HTTP 接口。而在不增加 GPU 的前提下想要提升模型性能，vLLM 就充当了这样一个中间层——它位于大模型与硬件之间，帮助模型更充分地利用显存与算力。它的使用方式也非常简单，只需一行 vllm serve 命令，即可提供与 OpenAI 接口一致的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://y3148y.github.io/img/art/vangogh-starry-night.jpg">
+<meta property="article:published_time" content="2026-10-20T17:52:00.000Z">
+<meta property="article:modified_time" content="2026-10-20T17:52:00.000Z">
+<meta property="article:author" content="听雨">
+<meta property="article:tag" content="LLM">
+<meta property="article:tag" content="推理">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://y3148y.github.io/img/art/vangogh-starry-night.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "初识vLLM",
+  "url": "https://y3148y.github.io/2026/10/20/vllm-intro/",
+  "image": "https://y3148y.github.io/img/art/vangogh-starry-night.jpg",
+  "datePublished": "2026-10-20T17:52:00.000Z",
+  "dateModified": "2026-10-20T17:52:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "听雨",
+      "url": "https://Y3148y.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/cat.png"><link rel="canonical" href="https://y3148y.github.io/2026/10/20/vllm-intro/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.5"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '初识vLLM',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><link rel="stylesheet" href="/css/painting.css"><link rel="stylesheet" href="/css/transition.css?v=1"><style>
+  /* MathJax 3 (tex-svg) 版式：宽公式横向滚动，块级公式居中 */
+  mjx-container {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    padding-bottom: 4px;
+  }
+  mjx-container[display="true"] {
+    display: block !important;
+    margin: 1em 0;
+    text-align: center;
+  }
+  /* SVG 输出的字形默认 fill 是黑色，暗色主题下不可见，跟随正文颜色 */
+  mjx-container svg {
+    fill: currentColor;
+  }
+</style>
+<meta name="generator" content="Hexo 8.1.2"></head><body><script>window.paceOptions = {
+  restartOnPushState: false
+}
+
+btf.addGlobalFn('pjaxSend', () => {
+  Pace.restart()
+}, 'pace_restart')
+
+</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/themes/blue/pace-theme-minimal.min.css"/><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><div class="bg-animation" id="web_bg" style="background-image: url(/img/sea.gif);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">24</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">42</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/art/vangogh-starry-night.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">听雨</span></a><a class="nav-page-title" href="/"><span class="site-name">初识vLLM</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">初识vLLM</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-20T17:52:00.000Z" title="发表于 2026-10-20 17:52:00">2026-10-20</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-20T17:52:00.000Z" title="更新于 2026-10-20 17:52:00">2026-10-20</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E5%AD%A6%E4%B9%A0/">技术学习</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><!-- toc -->
+<h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>当我们希望把一个开源模型部署为对外服务时，最先想到的往往是使用 HuggingFace 的 transformers 库加载模型，再对外提供 HTTP 接口。而在不增加 GPU 的前提下想要提升模型性能，vLLM 就充当了这样一个中间层——它位于大模型与硬件之间，帮助模型更充分地利用显存与算力。它的使用方式也非常简单，只需一行 <code>vllm serve</code> 命令，即可提供与 OpenAI 接口一致的服务。</p>
+<h1 id="vLLM"><a href="#vLLM" class="headerlink" title="vLLM"></a>vLLM</h1><h3 id="快速上手"><a href="#快速上手" class="headerlink" title="快速上手"></a>快速上手</h3><p>安装好 vLLM 后，只需一条 <code>vllm serve</code> 命令即可把模型启动为 OpenAI 兼容服务。下面是一个包含常用参数的完整示例：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">vllm serve Qwen/Qwen2.5-7B-Instruct \</span><br><span class="line">  --model Qwen/Qwen2.5-7B-Instruct \</span><br><span class="line">  --port 8000 \</span><br><span class="line">  --gpu-memory-utilization 0.9 \</span><br><span class="line">  --max-model-len 8192 \</span><br><span class="line">  --host 0.0.0.0</span><br></pre></td></tr></table></figure>
+
+<p>常用参数说明：</p>
+<ul>
+<li><code>--model</code>：要加载的模型名称或本地路径，也可直接作为 <code>vllm serve</code> 的位置参数传入。</li>
+<li><code>--port</code>：服务监听端口，默认 <code>8000</code>。</li>
+<li><code>--gpu-memory-utilization</code>：单卡显存占用比例（0~1），默认 <code>0.9</code>，显存紧张时可适当调低。</li>
+<li><code>--max-model-len</code>：模型最大上下文长度，按显存情况调整。</li>
+<li><code>--host</code>：监听地址，设为 <code>0.0.0.0</code> 便于外部访问。</li>
+</ul>
+<p>服务启动后，即可通过 OpenAI 兼容接口调用。使用 curl 发起一次对话请求：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">curl http://localhost:8000/v1/chat/completions \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    &quot;model&quot;: &quot;Qwen/Qwen2.5-7B-Instruct&quot;,</span></span><br><span class="line"><span class="string">    &quot;messages&quot;: [</span></span><br><span class="line"><span class="string">      &#123;&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;用一句话介绍 vLLM&quot;&#125;</span></span><br><span class="line"><span class="string">    ],</span></span><br><span class="line"><span class="string">    &quot;temperature&quot;: 0.7,</span></span><br><span class="line"><span class="string">    &quot;max_tokens&quot;: 256</span></span><br><span class="line"><span class="string">  &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>也可以使用 Python 的 <code>openai</code> SDK 直接调用：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> openai <span class="keyword">import</span> OpenAI</span><br><span class="line"></span><br><span class="line">client = OpenAI(</span><br><span class="line">    base_url=<span class="string">&quot;http://localhost:8000/v1&quot;</span>,</span><br><span class="line">    api_key=<span class="string">&quot;EMPTY&quot;</span>,  <span class="comment"># vLLM 默认不校验密钥，占位即可</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line">resp = client.chat.completions.create(</span><br><span class="line">    model=<span class="string">&quot;Qwen/Qwen2.5-7B-Instruct&quot;</span>,</span><br><span class="line">    messages=[</span><br><span class="line">        &#123;<span class="string">&quot;role&quot;</span>: <span class="string">&quot;user&quot;</span>, <span class="string">&quot;content&quot;</span>: <span class="string">&quot;用一句话介绍 vLLM&quot;</span>&#125;</span><br><span class="line">    ],</span><br><span class="line">    temperature=<span class="number">0.7</span>,</span><br><span class="line">    max_tokens=<span class="number">256</span>,</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(resp.choices[<span class="number">0</span>].message.content)</span><br></pre></td></tr></table></figure>
+
+
+<h2 id="KV-cache"><a href="#KV-cache" class="headerlink" title="KV cache"></a>KV cache</h2><h3 id="Q、K、V"><a href="#Q、K、V" class="headerlink" title="Q、K、V"></a>Q、K、V</h3><p>在讲 KV cache 之前，先把注意力机制里的 Q、K、V 说清楚，后面的一切都建立在这三个向量之上。</p>
+<p>Transformer 的注意力计算可以类比成一次「检索」：</p>
+<ul>
+<li><strong>Q（Query，查询）</strong>：当前 token 想「问」什么。它代表当前位置的检索意图。</li>
+<li><strong>K（Key，键）</strong>：每个 token 对外提供的「标签」，用来和 Q 做匹配，衡量彼此的相关程度。</li>
+<li><strong>V（Value，值）</strong>：每个 token 真正携带的「内容」，匹配度越高，它的内容被采纳得越多。</li>
+</ul>
+<p>计算过程也很直观：用当前 token 的 Q 与所有 token 的 K 做点积得到注意力分数，经 softmax 归一化成权重，再对所有 token 的 V 加权求和，就得到当前位置的输出。写成公式即：</p>
+<p>$$ \text{Attention}(Q, K, V) &#x3D; \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V $$</p>
+<p>其中 $d_k$ 是 Key 向量的维度，除以 $\sqrt{d_k}$ 是为了防止点积结果过大导致 softmax 梯度消失。</p>
+<p>关键点在于：<strong>K 和 V 只由对应位置的 token 决定，一旦算出来就不会再变</strong>。生成第 N 个 token 时，前 N-1 个 token 的 K、V 与上一步完全相同，重复计算纯属浪费——这正是 KV cache 存在的理由。</p>
+<h3 id="为什么需要-KV-cache"><a href="#为什么需要-KV-cache" class="headerlink" title="为什么需要 KV cache"></a>为什么需要 KV cache</h3><p>大模型生成文本是「一个词一个词往外蹦」的：每生成一个新 token，都要把「已有的全部 token」重新送进模型算一遍注意力。而注意力计算里，每个 token 都会产生一对 Key 和 Value 向量。如果不做缓存，第 N 步就要把前 N-1 步的 K、V 全部重算一遍，计算量随序列长度呈平方级增长，显存带宽也被反复浪费。</p>
+<p>KV cache 的思路很朴素：<strong>把已经算过的 K、V 存起来，下一步直接复用</strong>。这样每生成一个 token，只需为新 token 计算一次 K、V，再与历史缓存做注意力即可，把重复计算降为一次。代价是缓存本身要占显存——序列越长、并发越多，KV cache 越大，它往往才是推理服务里真正的显存瓶颈。</p>
+<p>下面这张图对比了「不使用缓存」与「使用 KV cache」两种方式在生成第 N 个 token 时的计算差异：</p>
+<pre><code class="highlight mermaid">flowchart LR
+  subgraph A[&quot;不使用 KV cache&quot;]
+    A1[&quot;第 N 步：重算前 N-1 个 token 的 K、V&quot;] --&gt; A2[&quot;计算量随序列长度平方增长&quot;]
+  end
+  subgraph B[&quot;使用 KV cache&quot;]
+    B1[&quot;第 N 步：只算新 token 的 K、V&quot;] --&gt; B2[&quot;复用历史 K、V 缓存&quot;]
+    B2 --&gt; B3[&quot;计算量降为一次&quot;]
+  end</code></pre>
+
+<h3 id="PagedAttention：像操作系统管理内存一样管理-KV-cache"><a href="#PagedAttention：像操作系统管理内存一样管理-KV-cache" class="headerlink" title="PagedAttention：像操作系统管理内存一样管理 KV cache"></a>PagedAttention：像操作系统管理内存一样管理 KV cache</h3><p>传统实现里，KV cache 通常要求为每条请求预留一段<strong>连续</strong>显存，并按最大长度分配。问题很明显：</p>
+<ul>
+<li>实际生成长度往往远小于最大长度，预留的空间大量闲置（内部碎片）；</li>
+<li>不同请求长度不一，连续分配容易产生外部碎片；</li>
+<li>请求结束后空间难以被其他请求复用，显存利用率低。</li>
+</ul>
+<p>vLLM 提出的 <strong>PagedAttention</strong> 借鉴了操作系统的虚拟内存分页机制：把 KV cache 切成固定大小的 <strong>block</strong>（页），每个 block 存放固定数量 token 的 K、V。每条请求维护一张「逻辑块 → 物理块」的映射表，物理块在显存中<strong>无需连续</strong>，按需分配、用完即还。</p>
+<p>这样一来：</p>
+<ul>
+<li>显存按需分配，几乎消除内部碎片，实测可将 KV cache 的显存浪费压到极低；</li>
+<li>不同请求的物理块可以灵活复用，支持更高的并发吞吐；</li>
+<li>相同前缀的请求还能<strong>共享物理块</strong>，这正是 prefix caching（前缀缓存）的基础。</li>
+</ul>
+<p>一句话概括：PagedAttention 让 KV cache 从「整块预留」变成「按页调度」，从而把显存用得更满、把并发做得更高。</p>
+<p>下图展示了 PagedAttention 中「逻辑块 → 物理块」的映射关系，物理块在显存中无需连续：</p>
+<pre><code class="highlight mermaid">flowchart LR
+  subgraph L[&quot;请求 A 的逻辑块&quot;]
+    L0[&quot;逻辑块 0&quot;]
+    L1[&quot;逻辑块 1&quot;]
+    L2[&quot;逻辑块 2&quot;]
+  end
+  subgraph P[&quot;显存中的物理块&quot;]
+    P3[&quot;物理块 3&quot;]
+    P7[&quot;物理块 7&quot;]
+    P1[&quot;物理块 1&quot;]
+  end
+  L0 --&gt; P3
+  L1 --&gt; P7
+  L2 --&gt; P1</code></pre>
+
+<h3 id="vLLM-中与-KV-cache-相关的关键启动参数"><a href="#vLLM-中与-KV-cache-相关的关键启动参数" class="headerlink" title="vLLM 中与 KV cache 相关的关键启动参数"></a>vLLM 中与 KV cache 相关的关键启动参数</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--block-size</code></td>
+<td><code>16</code></td>
+<td>每个 KV cache block 容纳的 token 数。取值越小，碎片越少但映射开销越大；一般保持默认即可。</td>
+</tr>
+<tr>
+<td><code>--swap-space</code></td>
+<td><code>4</code>（GiB&#x2F;卡）</td>
+<td>每张 GPU 可用于把被换出的 KV cache 暂存到 CPU 内存的空间大小，显存吃紧时用于腾挪。</td>
+</tr>
+<tr>
+<td><code>--enable-prefix-caching</code></td>
+<td>关闭</td>
+<td>开启前缀缓存，多个请求共享相同前缀的 KV block，显著加速系统提示词、few-shot 示例等重复前缀场景。</td>
+</tr>
+<tr>
+<td><code>--gpu-memory-utilization</code></td>
+<td><code>0.9</code></td>
+<td>单卡显存占用比例，vLLM 会把其中一部分划给 KV cache，调大可容纳更多并发与更长上下文。</td>
+</tr>
+<tr>
+<td><code>--max-model-len</code></td>
+<td>模型默认</td>
+<td>单条请求的最大上下文长度，直接决定单请求 KV cache 的上限。</td>
+</tr>
+<tr>
+<td><code>--max-num-seqs</code></td>
+<td>自动</td>
+<td>单批次最大并发请求数，并发越高 KV cache 占用越大，需与显存容量匹配。</td>
+</tr>
+</tbody></table>
+<h3 id="开启-prefix-caching-的启动示例"><a href="#开启-prefix-caching-的启动示例" class="headerlink" title="开启 prefix caching 的启动示例"></a>开启 prefix caching 的启动示例</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">vllm serve Qwen/Qwen2.5-7B-Instruct \</span><br><span class="line">  --port 8000 \</span><br><span class="line">  --gpu-memory-utilization 0.9 \</span><br><span class="line">  --max-model-len 8192 \</span><br><span class="line">  --block-size 16 \</span><br><span class="line">  --swap-space 8 \</span><br><span class="line">  --enable-prefix-caching</span><br></pre></td></tr></table></figure>
+
+<p>启动后，若多个请求携带相同的前缀（例如同一段系统提示词），vLLM 会复用已缓存的 KV block，减少重复的 prefill 计算。可以用下面的请求验证效果——连续发送两次相同前缀的请求，第二次的首 token 延迟通常会明显下降：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">curl http://localhost:8000/v1/chat/completions \</span><br><span class="line">  -H <span class="string">&quot;Content-Type: application/json&quot;</span> \</span><br><span class="line">  -d <span class="string">&#x27;&#123;</span></span><br><span class="line"><span class="string">    &quot;model&quot;: &quot;Qwen/Qwen2.5-7B-Instruct&quot;,</span></span><br><span class="line"><span class="string">    &quot;messages&quot;: [</span></span><br><span class="line"><span class="string">      &#123;&quot;role&quot;: &quot;system&quot;, &quot;content&quot;: &quot;你是一位严谨的技术助手，回答需简洁准确。&quot;&#125;,</span></span><br><span class="line"><span class="string">      &#123;&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;什么是 PagedAttention？&quot;&#125;</span></span><br><span class="line"><span class="string">    ],</span></span><br><span class="line"><span class="string">    &quot;max_tokens&quot;: 256</span></span><br><span class="line"><span class="string">  &#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>需要提醒的是，prefix caching 只对<strong>完全相同的前缀</strong>生效，前缀中任何一处差异都会导致缓存无法命中；同时它会额外占用一部分显存来保存缓存块，显存紧张时应结合 <code>--gpu-memory-utilization</code> 与 <code>--max-num-seqs</code> 一起权衡。</p>
+<h2 id="批处理与调度器"><a href="#批处理与调度器" class="headerlink" title="批处理与调度器"></a>批处理与调度器</h2><p>有了 PagedAttention 把显存管好，vLLM 还需要一套机制来决定「同一时刻让哪些请求一起算、按什么顺序算」，这就是调度器（Scheduler）与批处理（Batching）要解决的问题。</p>
+<h3 id="从静态批处理到连续批处理"><a href="#从静态批处理到连续批处理" class="headerlink" title="从静态批处理到连续批处理"></a>从静态批处理到连续批处理</h3><p>最朴素的做法是<strong>静态批处理</strong>：攒够一批请求，一起送进 GPU，等这一批里最长的请求生成完，再整批返回、开始下一批。问题在于大模型的输出长度差异极大——同一批里若有一条请求生成了 2000 个 token，其余只生成 20 个 token 的请求也只能干等着，GPU 在等待期间几乎空转。</p>
+<p>vLLM 采用的是<strong>连续批处理（Continuous Batching）</strong>，也叫迭代级调度（iteration-level scheduling）：调度不再以「一整批请求」为粒度，而是以「一次前向迭代」为粒度。<strong>每生成一个 token 后，调度器都会重新检查队列</strong>：</p>
+<ul>
+<li>有请求生成结束（遇到 EOS 或达到 <code>max_tokens</code>），立刻把它移出批次，释放其占用的 KV block；</li>
+<li>有新请求到达，只要显存还放得下它的 KV cache，就立刻插进当前批次一起计算。</li>
+</ul>
+<p>这样 GPU 的每个迭代都尽可能被填满，长请求不会拖住短请求，短请求也不会占着位置空等，整体吞吐和平均延迟都明显改善。</p>
+<p>这里需要澄清两个容易混淆的点：<strong>什么是一次前向迭代</strong>，以及<strong>为什么它和静态批处理不是一回事</strong>。</p>
+<p>先说「一次前向迭代」。大模型推理时，每调用一次模型、让数据在 GPU 上完整地流过一遍所有层，就叫一次前向迭代（forward iteration）。一次迭代的产出是：批次里每条请求各自的下一个 token（prefill 阶段则是整段 prompt 的 KV cache）。所以「一次迭代」是 GPU 计算的最小调度单位，它对应一次 kernel 调用序列，而不是「一条请求从头生成到尾」。</p>
+<p>关键区别就在这里：<strong>静态批处理以「一整批请求的生命周期」为粒度，连续批处理以「一次前向迭代」为粒度</strong>。</p>
+<ul>
+<li>静态批处理：一批请求一起进来，必须等这批里最长的请求把全部 token 生成完，整批才算结束，期间哪怕别的请求早就生成完了，它们占的位置也不能让给新请求。批次成员在整个生命周期内固定不变。</li>
+<li>连续批处理：每跑完<strong>一次</strong>前向迭代，调度器就重新组一次批。某条请求在这一轮里生成了 EOS，下一轮它就不在批次里了，它腾出的 KV block 立刻可以给新请求用；新请求到达后，下一轮就能被塞进来一起算。</li>
+</ul>
+<p>所以「一次前向迭代」和「一次完整的 prefill」完全是两个尺度。一条带 3000 token 长 prompt 的请求，它的 prefill 在<strong>默认配置下</strong>确实是在一次前向迭代里算完的——这一次迭代很重，但它只是<strong>一次</strong>迭代，算完就结束了，下一轮迭代调度器立刻可以重新组批，把这条请求转入 decode，同时把新请求加进来。而静态批处理要等的是这条请求<strong>把回答全部生成完</strong>（可能几百上千次迭代），两者等待的时长差了几个数量级。</p>
+<p>换句话说，连续批处理的「连续」体现在：批次不是一次性锁定到请求结束，而是<strong>每轮迭代都可以换人</strong>。哪怕某一轮迭代因为长 prefill 而变慢，它也只是「这一轮慢」，不会像静态批处理那样让整批请求陪着一条长请求耗到它彻底结束。</p>
+<p>下面这张图对比了静态批处理与连续批处理在时间轴上的差异：</p>
+<pre><code class="highlight mermaid">flowchart TD
+  subgraph S[&quot;静态批处理&quot;]
+    S1[&quot;请求 A、B、C 同时进入&quot;] --&gt; S2[&quot;等待最长的请求 C 生成完毕&quot;]
+    S2 --&gt; S3[&quot;整批一起返回，期间空位无法复用&quot;]
+  end
+  subgraph C[&quot;连续批处理&quot;]
+    C1[&quot;每轮迭代后重新组批&quot;] --&gt; C2[&quot;请求 B 生成结束，立即移出并释放 KV block&quot;]
+    C2 --&gt; C3[&quot;新请求 D 下一轮即可插入&quot;]
+    C3 --&gt; C1
+  end</code></pre>
+
+<h3 id="调度器的基本流程"><a href="#调度器的基本流程" class="headerlink" title="调度器的基本流程"></a>调度器的基本流程</h3><p>vLLM 的调度器在每一轮迭代中大致做三件事：</p>
+<ol>
+<li><strong>挑请求</strong>：按先来先服务（FCFS）等策略从等待队列（waiting）中取出请求，判断其所需 KV block 能否分配；</li>
+<li><strong>分块</strong>：为被选中的请求分配物理 block，若显存不足则触发抢占（preemption）；</li>
+<li><strong>组批</strong>：把本轮要计算的请求组成一个 batch，交给模型执行前向计算。</li>
+</ol>
+<p>其中「分块」这一步正是 PagedAttention 的用武之地——因为 KV cache 按页管理，调度器可以精确地知道「还能塞下几个 token 的缓存」，从而做出更细粒度的准入决策。</p>
+<p>需要强调的是，调度器是在<strong>每轮迭代之间</strong>重新组批的：一次前向迭代一旦提交给 GPU，批次里所有请求就必须一起算完，这一轮的耗时由批次里最重的活决定，调度器无法在迭代执行到一半时把请求「踢出去」。因此「每轮迭代换人」只解决了<strong>批次成员多久更新一次</strong>，并没有解决<strong>单轮迭代内部负载不均</strong>——如果某一轮迭代里塞进了一个 3000 token 的 prefill，这一轮的计算量就是几十上百个 decode 步骤的量级，同批次里那些只需算一个 token 的 decode 请求，仍然要在这一轮里陪着等，用户看到的就是输出一顿一顿、延迟抖动明显。这正是下一节「分块 prefill」要解决的问题。</p>
+<p>调度器在一轮迭代中的处理流程可以概括为：</p>
+<pre><code class="highlight mermaid">flowchart TD
+  A[&quot;等待队列 waiting&quot;] --&gt; B&#123;&quot;所需 KV block 能否分配&quot;&#125;
+  B -- &quot;能&quot; --&gt; C[&quot;分配物理 block&quot;]
+  B -- &quot;不能&quot; --&gt; D[&quot;触发抢占 preemption&quot;]
+  D --&gt; E[&quot;换出 Swap 或 重算 Recompute&quot;]
+  E --&gt; C
+  C --&gt; F[&quot;组成本轮 batch&quot;]
+  F --&gt; G[&quot;交给模型执行前向计算&quot;]
+  G --&gt; A</code></pre>
+
+<h3 id="抢占：显存不够时怎么办"><a href="#抢占：显存不够时怎么办" class="headerlink" title="抢占：显存不够时怎么办"></a>抢占：显存不够时怎么办</h3><p>当新请求或正在运行的请求需要更多 KV block，而显存已经分配完时，调度器必须<strong>抢占</strong>一部分请求来腾出空间。vLLM 提供两种回收方式：</p>
+<ul>
+<li><strong>换出（Swap）</strong>：把被抢占请求的 KV block 拷贝到 CPU 内存（即 <code>--swap-space</code> 指定的空间），等它重新被调度时再拷回 GPU；</li>
+<li><strong>重算（Recompute）</strong>：直接丢弃该请求的 KV cache，等它恢复运行时，把已有的 token 重新做一次 prefill 把缓存算回来。</li>
+</ul>
+<p>一般来说，换出的代价是 PCIe 带宽，重算的代价是算力，调度器会根据请求长度和当前负载选择更划算的一种。这也解释了为什么 <code>--swap-space</code> 和 <code>--max-num-seqs</code> 需要一起调：前者决定了能「暂存」多少，后者决定了同时「在跑」多少。</p>
+<h3 id="与调度相关的常用参数"><a href="#与调度相关的常用参数" class="headerlink" title="与调度相关的常用参数"></a>与调度相关的常用参数</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--max-num-seqs</code></td>
+<td>自动</td>
+<td>单批次最大并发序列数。调大可提升吞吐，但 KV cache 占用随之上升。</td>
+</tr>
+<tr>
+<td><code>--max-num-batched-tokens</code></td>
+<td>自动</td>
+<td>单次迭代最多处理的 token 数（含 prefill 与 decode），是控制单步计算量的关键旋钮。</td>
+</tr>
+<tr>
+<td><code>--swap-space</code></td>
+<td><code>4</code>（GiB&#x2F;卡）</td>
+<td>被抢占请求的 KV cache 可换出到 CPU 内存的空间上限。</td>
+</tr>
+<tr>
+<td><code>--scheduler-policy</code></td>
+<td><code>fcfs</code></td>
+<td>调度策略，先来先服务；部分版本还支持优先级调度。</td>
+</tr>
+<tr>
+<td><code>--enable-chunked-prefill</code></td>
+<td>关闭</td>
+<td>开启分块 prefill，把长 prompt 的 prefill 拆成多轮，避免长请求阻塞正在 decode 的请求。</td>
+</tr>
+</tbody></table>
+<h3 id="一个开启分块-prefill-的启动示例"><a href="#一个开启分块-prefill-的启动示例" class="headerlink" title="一个开启分块 prefill 的启动示例"></a>一个开启分块 prefill 的启动示例</h3><p>长 prompt 场景下，单次 prefill 可能占用大量计算时间，导致同批次里正在逐 token 生成的请求被「卡住」。要理解这句话，先分清推理中的两个阶段：</p>
+<ul>
+<li><strong>prefill（预填充）</strong>：把用户输入的整段 prompt 一次性送进模型，算出所有 token 的 KV cache。这是一次「大批量计算」，prompt 越长，耗时越久。</li>
+<li><strong>decode（解码）</strong>：逐 token 生成回答，每步只算一个新 token，单步计算量很小。</li>
+</ul>
+<p>开启分块 prefill 后，长 prompt 的 prefill 不再一口气算完，而是按 <code>--max-num-batched-tokens</code> 的预算拆成若干块，每轮迭代只算一块，剩余预算留给 decode 请求，两者交替执行。于是每轮迭代的计算量被控制在相近水平，decode 请求不会被长时间阻塞，长 prompt 的首 token 延迟也更平滑、可预测：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">vllm serve Qwen/Qwen2.5-7B-Instruct \</span><br><span class="line">  --port 8000 \</span><br><span class="line">  --gpu-memory-utilization 0.9 \</span><br><span class="line">  --max-model-len 8192 \</span><br><span class="line">  --max-num-seqs 256 \</span><br><span class="line">  --max-num-batched-tokens 8192 \</span><br><span class="line">  --enable-chunked-prefill</span><br></pre></td></tr></table></figure>
+
+<p>需要说明的是，<code>--max-num-batched-tokens</code> 调大能提升单步吞吐，但会拉长单次迭代耗时，进而影响交互式场景的响应速度；调小则相反。实际部署时建议先用默认值压测，再结合业务的「吞吐优先」还是「延迟优先」逐步调整。</p>
+<h2 id="量化"><a href="#量化" class="headerlink" title="量化"></a>量化</h2><h3 id="为什么需要量化"><a href="#为什么需要量化" class="headerlink" title="为什么需要量化"></a>为什么需要量化</h3><p>前面几节讨论的都是「怎么把显存用得更满、把请求排得更顺」，但有一个更根本的约束始终存在：<strong>模型权重本身就要占显存</strong>。一个 7B 参数的模型，用 FP16 存储大约需要 14 GB 显存，再加上 KV cache 和中间激活，单卡 24 GB 往往只能勉强跑起来；70B 级别的模型更是需要多卡才能装下。</p>
+<p>量化（Quantization）的思路是：<strong>用更低的数值精度来表示权重和激活</strong>，把 FP16 的 16 bit 压缩到 8 bit（FP8）、4 bit 甚至更低。带来的收益很直接：</p>
+<ul>
+<li><strong>显存占用大幅下降</strong>：4 bit 量化后，7B 模型的权重只需约 4 GB，原本装不下的模型变得可以单卡部署；</li>
+<li><strong>显存带宽压力减小</strong>：decode 阶段是典型的「访存瓶颈」，每生成一个 token 都要把权重从显存读一遍，权重变小意味着读得更快，吞吐随之提升；</li>
+<li><strong>单位显存能容纳更多并发</strong>：权重省下来的显存可以留给 KV cache，从而支撑更大的 batch。</li>
+</ul>
+<p>代价则是精度损失——量化越激进，模型输出质量下降的风险越大，需要在「省显存」和「保效果」之间权衡。</p>
+<h3 id="常见的量化方案"><a href="#常见的量化方案" class="headerlink" title="常见的量化方案"></a>常见的量化方案</h3><p>按「量化发生在什么时候」，可以粗略分成两类：</p>
+<ul>
+<li><strong>训练后量化（PTQ，Post-Training Quantization）</strong>：模型训练完成后，用少量校准数据统计权重&#x2F;激活的分布，直接算出量化参数。成本低、落地快，是推理部署中最常用的方式，GPTQ、AWQ 都属于这一类。</li>
+<li><strong>量化感知训练（QAT，Quantization-Aware Training）</strong>：在训练过程中模拟量化误差，让模型提前「适应」低精度，通常精度更好，但需要重新训练，成本高得多。</li>
+</ul>
+<p>按「量化对象」又可以分成：</p>
+<ul>
+<li><strong>仅权重量化（Weight-Only）</strong>：只把权重压到 INT8&#x2F;INT4，激活仍保持 FP16。实现简单、兼容性好，是当前主流做法；</li>
+<li><strong>权重 + 激活量化（W8A8 等）</strong>：权重和激活都用低精度，能进一步利用 INT8 矩阵乘的算力，但对校准和算子支持要求更高。</li>
+</ul>
+<p>几个常见的具体算法：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>特点</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GPTQ</td>
+<td>逐层做二阶误差补偿，4 bit 下效果稳定，生态成熟</td>
+<td>通用 GPU 推理，社区量化模型最多</td>
+</tr>
+<tr>
+<td>AWQ</td>
+<td>依据激活分布识别「重要通道」并加以保护，4 bit 精度通常优于 GPTQ</td>
+<td>对精度要求较高的场景</td>
+</tr>
+<tr>
+<td>FP8</td>
+<td>直接使用 FP8 数据类型，无需复杂校准，Hopper 及更新架构原生支持</td>
+<td>新卡上的高吞吐推理</td>
+</tr>
+<tr>
+<td>INT8（W8A8）</td>
+<td>权重与激活均为 INT8，可利用 INT8 Tensor Core</td>
+<td>追求极致吞吐、对精度容忍度较高</td>
+</tr>
+</tbody></table>
+<h3 id="vLLM-中如何使用量化模型"><a href="#vLLM-中如何使用量化模型" class="headerlink" title="vLLM 中如何使用量化模型"></a>vLLM 中如何使用量化模型</h3><p>vLLM 本身不负责「量化模型」，而是<strong>加载并高效执行已经量化好的模型</strong>。使用方式有两种：</p>
+<p><strong>方式一：直接加载社区已量化好的模型</strong>。HuggingFace 上有大量 GPTQ &#x2F; AWQ 版本的模型，vLLM 会根据模型配置自动识别量化方式，无需额外参数：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">vllm serve Qwen/Qwen2.5-7B-Instruct-AWQ \</span><br><span class="line">  --port 8000 \</span><br><span class="line">  --gpu-memory-utilization 0.9 \</span><br><span class="line">  --max-model-len 8192</span><br></pre></td></tr></table></figure>
+
+<p><strong>方式二：显式指定量化方式</strong>。当模型配置里没有写明量化信息，或需要覆盖默认行为时，用 <code>--quantization</code> 指定：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">vllm serve Qwen/Qwen2.5-7B-Instruct \</span><br><span class="line">  --quantization awq \</span><br><span class="line">  --port 8000 \</span><br><span class="line">  --gpu-memory-utilization 0.9 \</span><br><span class="line">  --max-model-len 8192</span><br></pre></td></tr></table></figure>
+
+<p>常用参数说明：</p>
+<ul>
+<li><code>--quantization</code>：量化方式，常见取值有 <code>awq</code>、<code>gptq</code>、<code>fp8</code>、<code>bitsandbytes</code> 等；不指定时由模型配置自动推断。</li>
+<li><code>--dtype</code>：非量化部分（如激活、KV cache）的数据类型，通常保持 <code>auto</code> 或 <code>float16</code>&#x2F;<code>bfloat16</code>。</li>
+<li><code>--kv-cache-dtype</code>：KV cache 的数据类型，设为 <code>fp8</code> 可以把 KV cache 也压到 8 bit，进一步缓解显存压力，但需要硬件支持。</li>
+</ul>
+<h3 id="量化与-KV-cache-的关系"><a href="#量化与-KV-cache-的关系" class="headerlink" title="量化与 KV cache 的关系"></a>量化与 KV cache 的关系</h3><p>需要特别区分两个容易混淆的概念：<strong>权重量化</strong>和 <strong>KV cache 量化</strong>是两件独立的事。</p>
+<ul>
+<li>权重量化（GPTQ&#x2F;AWQ 等）压缩的是模型参数，影响的是「模型本身占多少显存」；</li>
+<li>KV cache 量化（<code>--kv-cache-dtype fp8</code>）压缩的是推理过程中缓存的 K、V，影响的是「能同时服务多少请求、支持多长上下文」。</li>
+</ul>
+<p>两者可以叠加使用：先用 AWQ 把权重压到 4 bit，再用 FP8 压缩 KV cache，显存利用率可以再上一个台阶。不过 KV cache 量化对精度的影响通常比权重量化更敏感，建议在压测中对比开启前后的输出质量再决定。</p>
+<p>下图展示了权重量化与 KV cache 量化分别作用于推理链路的哪个环节：</p>
+<pre><code class="highlight mermaid">flowchart LR
+  A[&quot;模型权重 FP16&quot;] -- &quot;权重量化 GPTQ / AWQ / FP8&quot; --&gt; B[&quot;低精度权重 INT4 / FP8&quot;]
+  C[&quot;KV cache FP16&quot;] -- &quot;KV cache 量化 --kv-cache-dtype fp8&quot; --&gt; D[&quot;低精度 KV cache FP8&quot;]
+  B --&gt; E[&quot;显存占用下降&quot;]
+  D --&gt; F[&quot;并发与上下文容量提升&quot;]</code></pre>
+
+<h3 id="实践建议"><a href="#实践建议" class="headerlink" title="实践建议"></a>实践建议</h3><ul>
+<li><strong>优先选社区验证过的量化模型</strong>：AWQ &#x2F; GPTQ 的 4 bit 版本在多数任务上与原模型差距很小，直接拿来用最省事；</li>
+<li><strong>先量化权重，再考虑 KV cache</strong>：权重是显存占用的「大头」，收益最明显；KV cache 量化留作进一步优化的手段；</li>
+<li><strong>量化后务必回归测试</strong>：用业务真实数据对比量化前后的输出，重点关注长文本、代码、数学等对精度敏感的任务；</li>
+<li><strong>注意硬件与算子支持</strong>：FP8 需要较新的 GPU 架构，部分量化方式在特定卡型上可能没有高效 kernel，实际吞吐未必如预期。</li>
+</ul>
+<p>一句话概括：量化是在「显存」和「精度」之间做交换，vLLM 负责把量化后的模型跑得又快又稳，而选哪种量化方案、压到什么程度，取决于你的显存预算和业务对效果的容忍度。</p>
+<h2 id="GPU-worker"><a href="#GPU-worker" class="headerlink" title="GPU worker"></a>GPU worker</h2><p>下面这张图展示了从请求进入到 token 回传的完整链路：</p>
+<pre><code class="highlight mermaid">flowchart TD
+  A[&quot;客户端请求&quot;] --&gt; B[&quot;API Server&lt;br/&gt;接收 HTTP 请求 / tokenize&quot;]
+  B --&gt; C[&quot;Engine Core 调度器&lt;br/&gt;挑请求 · 分配 KV block · 组批&quot;]
+  C --&gt; D[&quot;下发执行计划&lt;br/&gt;请求列表 + block table + 本轮 token 数&quot;]
+  D --&gt; E[&quot;GPU worker&lt;br/&gt;准备输入张量&quot;]
+  E --&gt; F[&quot;执行前向计算&lt;br/&gt;PagedAttention 读写 KV cache&quot;]
+  F --&gt; G[&quot;采样得到下一个 token&quot;]
+  G --&gt; H[&quot;回传 token 与 KV cache 状态&quot;]
+  H --&gt; C
+  C --&gt; I[&quot;API Server 返回响应&quot;]</code></pre>
+
+<p>图注：API Server 负责接收请求与 tokenize，把请求交给 Engine Core；Engine Core 中的调度器决定本轮算哪些请求、分配 KV block 并组批，再把执行计划下发给 GPU worker；worker 持有模型权重与 KV cache 物理显存，完成前向计算与采样后回传 token，如此循环直到生成结束，最终由 API Server 返回响应。</p>
+<p>前面几节讲的都是「怎么把显存用得更满、把请求排得更顺」，但这些策略最终都要落到具体的执行者身上——真正把模型权重加载进显存、把每一轮迭代的 kernel 跑起来的，是 vLLM 里的 <strong>GPU worker</strong>。理解它的职责，有助于把前面零散的概念串成一条完整的执行链路。</p>
+<h3 id="GPU-worker-是什么"><a href="#GPU-worker-是什么" class="headerlink" title="GPU worker 是什么"></a>GPU worker 是什么</h3><p>在 vLLM 的架构里，进程角色大致可以分成两类：</p>
+<ul>
+<li><strong>API Server &#x2F; Engine Core</strong>：负责接收 HTTP 请求、做 tokenize、维护调度器与请求队列，决定「这一轮迭代要算哪些请求」；</li>
+<li><strong>GPU worker</strong>：负责「真正去算」。它持有模型权重、KV cache 的物理显存，接收 Engine Core 下发的执行计划（哪些请求、各自的 block 映射表、本轮要算多少 token），调用模型前向计算，再把新生成的 token 与采样结果回传。</li>
+</ul>
+<p>一句话概括：<strong>Engine Core 负责「决定算什么」，GPU worker 负责「把它算出来」</strong>。调度器再聪明，也只是产出一份执行计划；没有 worker 去执行，计划就只是纸面上的数字。</p>
+<h3 id="一次迭代里-worker-做了什么"><a href="#一次迭代里-worker-做了什么" class="headerlink" title="一次迭代里 worker 做了什么"></a>一次迭代里 worker 做了什么</h3><p>把前面「一次前向迭代」的概念落到 worker 上，它在一轮迭代中大致完成这几步：</p>
+<ol>
+<li><strong>接收执行计划</strong>：拿到本轮参与计算的请求列表、每条请求的输入 token（prefill 阶段是整段 prompt，decode 阶段是新生成的单个 token），以及逻辑块到物理块的映射表；</li>
+<li><strong>准备输入张量</strong>：按 PagedAttention 的要求，把 token 拼成批次张量，并把 block table、序列长度等元信息一并组织好；</li>
+<li><strong>执行前向计算</strong>：调用模型跑一遍所有层，注意力部分通过 PagedAttention kernel 按 block table 去读 KV cache，并把新算出的 K、V 写回对应的物理块；</li>
+<li><strong>采样并回传</strong>：对输出的 logits 做采样得到下一个 token，把结果连同更新后的 KV cache 状态返回给 Engine Core。</li>
+</ol>
+<p>可以看到，前面讲的 PagedAttention、连续批处理、分块 prefill，最终都体现为 worker 这一侧的输入组织方式与 kernel 调用方式——<strong>调度策略决定「批次长什么样」，worker 决定「这个批次怎么算」</strong>。</p>
+<h3 id="单卡与多卡：worker-的组织方式"><a href="#单卡与多卡：worker-的组织方式" class="headerlink" title="单卡与多卡：worker 的组织方式"></a>单卡与多卡：worker 的组织方式</h3><ul>
+<li><strong>单卡部署</strong>：一个 GPU worker 独占一张卡，模型权重与 KV cache 都放在这张卡的显存里，是最简单的形态；</li>
+<li><strong>张量并行（TP）</strong>：模型一层被切分到多张卡上，每张卡一个 worker，它们在同一次迭代中协同完成一次前向计算，通过 all-reduce 等通信同步中间结果；</li>
+<li><strong>流水并行（PP）</strong>：把不同层放到不同卡上，worker 之间按层顺序传递激活值。</li>
+</ul>
+<p>多卡场景下，<code>--tensor-parallel-size</code> 与 <code>--pipeline-parallel-size</code> 决定的就是 worker 的数量与切分方式。这也解释了一个常见现象：<strong>显存不够时，加卡往往比调参更直接</strong>——因为加卡本质上是在增加 worker、分摊权重与 KV cache 的占用。</p>
+<h3 id="与前面几节的关系"><a href="#与前面几节的关系" class="headerlink" title="与前面几节的关系"></a>与前面几节的关系</h3><table>
+<thead>
+<tr>
+<th>前面讲的概念</th>
+<th>在 GPU worker 上的体现</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>KV cache &#x2F; PagedAttention</td>
+<td>worker 持有物理 block，按 block table 读写 KV cache</td>
+</tr>
+<tr>
+<td>连续批处理</td>
+<td>worker 每轮接收一份新的执行计划，批次成员可以变化</td>
+</tr>
+<tr>
+<td>分块 prefill</td>
+<td>worker 每轮只对长 prompt 的一部分做 prefill，剩余留给 decode</td>
+</tr>
+<tr>
+<td>抢占（Swap &#x2F; Recompute）</td>
+<td>worker 负责把 KV block 拷出到 CPU，或丢弃后重新 prefill</td>
+</tr>
+<tr>
+<td>量化</td>
+<td>worker 加载的是低精度权重，前向计算按对应 kernel 执行</td>
+</tr>
+</tbody></table>
+<h3 id="实践中的关注点"><a href="#实践中的关注点" class="headerlink" title="实践中的关注点"></a>实践中的关注点</h3><ul>
+<li><strong>worker 数量与显存匹配</strong>：TP&#x2F;PP 的切分要与卡数、单卡显存一起规划，切得太细通信开销会吃掉收益；</li>
+<li><strong>启动日志里的 worker 信息</strong>：vLLM 启动时会打印每个 worker 的 device、显存占用与 KV cache block 数量，是排查「为什么并发上不去」的第一手线索；</li>
+<li><strong>故障定位</strong>：OOM、kernel 报错、NCCL 通信超时通常都发生在 worker 侧，看到这类错误时应优先检查单卡显存与卡间通信，而不是调度参数。</li>
+</ul>
+<p>一句话概括：GPU worker 是 vLLM 里「真正干活的那一层」，调度器给出计划、worker 负责执行；把 worker 的职责想清楚，前面关于 KV cache、批处理与量化的讨论就能串成一条从请求到算力的完整链路。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><ul>
+<li><strong>vLLM 的定位</strong>：它站在大模型与硬件之间，不改变模型本身，而是通过更聪明的显存管理与请求调度，把同一张 GPU 的算力与显存榨得更充分，对外只需一条 <code>vllm serve</code> 就能提供 OpenAI 兼容服务。</li>
+<li><strong>KV cache</strong>：注意力的 K、V 只由对应位置的 token 决定，算过就不会变；把它们缓存下来复用，就能把每步重复的平方级计算降为一次，代价是缓存本身成为推理服务真正的显存瓶颈。</li>
+<li><strong>PagedAttention</strong>：借鉴操作系统分页思想，把 KV cache 切成固定大小的 block，用「逻辑块 → 物理块」映射表按需分配、灵活复用，让显存从「整块预留」变成「按页调度」，同时为 prefix caching 打下基础。</li>
+<li><strong>连续批处理与调度器</strong>：调度粒度从「一整批请求的生命周期」细化到「一次前向迭代」，每轮迭代之间重新组批，请求结束即释放 KV block、新请求随时插入；显存不足时再通过换出或重算完成抢占。</li>
+<li><strong>量化</strong>：用更低精度表示权重与激活，在显存与精度之间做交换；权重量化与 KV cache 量化是两件独立的事，可以叠加使用，但都需要用业务数据回归验证效果。</li>
+<li><strong>GPU worker</strong>：它是真正干活的那一层，持有模型权重与 KV cache 物理显存，按 Engine Core 下发的执行计划完成前向计算与采样——调度策略决定「批次长什么样」，worker 决定「这个批次怎么算」。</li>
+</ul>
+<h3 id="一次完整的输入输出过程"><a href="#一次完整的输入输出过程" class="headerlink" title="一次完整的输入输出过程"></a>一次完整的输入输出过程</h3><p>前面几节分别讲了 KV cache、PagedAttention、连续批处理、量化和 GPU worker，但它们并不是彼此独立的模块，而是同一条推理链路上的不同环节。这一节把整条链路完整走一遍：一条请求从进入 vLLM 到拿到完整回答，中间每一步分别由谁负责、用到了前面哪个机制、又消耗了哪部分显存。</p>
+<h4 id="阶段-0：启动时把显存切成两半"><a href="#阶段-0：启动时把显存切成两半" class="headerlink" title="阶段 0：启动时把显存切成两半"></a>阶段 0：启动时把显存切成两半</h4><p>在服务对外提供接口之前，vLLM 先做一次「资源准备」，这一步决定了后面所有请求能借到多少空间：</p>
+<ol>
+<li><strong>加载模型权重</strong>：GPU worker 把模型参数读进显存。如果用的是 AWQ &#x2F; GPTQ 量化模型，读进来的就是 4 bit 低精度权重，7B 模型从约 14 GB 降到约 4 GB——这是量化最直接的收益。</li>
+<li><strong>划分显存池</strong>：vLLM 按 <code>--gpu-memory-utilization</code>（默认 <code>0.9</code>）算出这张卡可用的显存总量，扣掉权重、激活、通信缓冲等开销，把<strong>剩余部分一次性预留成 KV cache 显存池</strong>，再按 <code>--block-size</code>（默认 <code>16</code>）切成固定大小的物理 block。启动日志里的 <code># GPU blocks: xxx</code> 就是池子的容量。</li>
+<li><strong>建立前缀缓存表</strong>（可选）：若开启 <code>--enable-prefix-caching</code>，vLLM 会额外维护一张「前缀 hash → 物理 block」的索引表，供后续请求复用相同前缀的 KV block。</li>
+</ol>
+<p>此后池子大小不再变化，所有请求都只是从池子里「借」block。可以记成一句话：<strong>权重是固定占用，KV cache 池是弹性占用，两者此消彼长</strong>——这也是为什么量化省下来的显存，最终会变成更大的并发能力。</p>
+<h4 id="阶段-1：请求进入-Engine-Core"><a href="#阶段-1：请求进入-Engine-Core" class="headerlink" title="阶段 1：请求进入 Engine Core"></a>阶段 1：请求进入 Engine Core</h4><p>客户端通过 <code>POST /v1/chat/completions</code> 发起请求，API Server 接收后解析请求体，把 messages 按对话模板拼成一段 prompt 并 tokenize 成 token 序列，然后封装成序列对象交给 Engine Core。</p>
+<p>Engine Core 是「大脑」，它不碰 GPU 计算，只负责决策：维护等待队列（waiting）与运行队列（running），并在每一轮迭代前决定「这一轮算哪些请求、各分配多少 block」。真正的计算全部由 GPU worker 执行——<strong>Engine Core 决定算什么，GPU worker 负责把它算出来</strong>。</p>
+<h4 id="阶段-2：调度器组批（连续批处理在这里发生）"><a href="#阶段-2：调度器组批（连续批处理在这里发生）" class="headerlink" title="阶段 2：调度器组批（连续批处理在这里发生）"></a>阶段 2：调度器组批（连续批处理在这里发生）</h4><p>调度器在每一轮迭代之间做三件事：</p>
+<ol>
+<li><strong>挑请求</strong>：按 FCFS 等策略从等待队列取请求，判断所需 KV block 能否从显存池中分配；</li>
+<li><strong>分块</strong>：为被选中的请求分配物理 block，建立「逻辑块 → 物理块」映射表；显存不够时触发抢占（Swap 换出到 CPU，或 Recompute 丢弃后重算）；</li>
+<li><strong>组批</strong>：把本轮要算的请求组成一个 batch，连同 block table、本轮 token 数一起下发给 GPU worker。</li>
+</ol>
+<p>这里正是<strong>连续批处理</strong>的体现：批次不是一次性锁定到请求结束，而是<strong>每轮迭代都可以换人</strong>。某条请求这一轮生成了 EOS，下一轮它就不在批次里，它腾出的 block 立刻归还显存池给新请求用；新请求到达后，下一轮就能被塞进来一起算。所以 GPU 的每个迭代都尽可能被填满，长请求不会拖住短请求。</p>
+<h4 id="阶段-3：prefill——建立-KV-cache"><a href="#阶段-3：prefill——建立-KV-cache" class="headerlink" title="阶段 3：prefill——建立 KV cache"></a>阶段 3：prefill——建立 KV cache</h4><p>被选中的新请求进入 prefill：GPU worker 把整段 prompt 一次性送进模型，跑一遍所有层，算出所有 token 的 K、V，并按 block table 写入显存池中分配到的物理块，同时得到第一个输出 token。</p>
+<p>这一步有两个细节值得注意：</p>
+<ul>
+<li><strong>KV cache 在这里诞生</strong>。注意力的 K、V 只由对应位置的 token 决定，算过就不会变，所以存下来后续直接复用，把每步重复的平方级计算降为一次。注意这是<strong>同一条请求内部</strong>的复用：这条请求在 decode 阶段每生成一个新 token，都要回头读自己前面所有 token 的 K、V，靠的就是这份缓存。</li>
+<li><strong>prefix caching 在这里生效</strong>。它解决的是<strong>跨请求</strong>的复用问题：如果开启前缀缓存，worker 会先按前缀 hash 查表，看<strong>别的请求</strong>是否已经算过一段完全相同的前缀；命中则直接复用那些物理块，只对未命中的后缀做 prefill。多个请求共享同一段系统提示词时，第二次请求的 prefill 计算量会大幅减少，首 token 延迟明显下降。</li>
+</ul>
+<p>两者的区别可以整理成一张表：</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>KV cache</th>
+<th>prefix caching</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>复用范围</td>
+<td>同一条请求内部</td>
+<td>不同请求之间</td>
+</tr>
+<tr>
+<td>复用内容</td>
+<td>自己已生成 token 的 K、V</td>
+<td>其他请求算过的、完全相同的前缀 block</td>
+</tr>
+<tr>
+<td>生效阶段</td>
+<td>prefill 建立，decode 全程使用</td>
+<td>只在 prefill 阶段查表命中</td>
+</tr>
+<tr>
+<td>是否默认开启</td>
+<td>是，KV cache 是推理的基本机制</td>
+<td>否，需 <code>--enable-prefix-caching</code></td>
+</tr>
+<tr>
+<td>命中条件</td>
+<td>天然命中，就是自己的历史</td>
+<td>前缀必须逐 token 完全一致</td>
+</tr>
+</tbody></table>
+<p>换句话说：<strong>KV cache 是「自己记住自己算过的东西」，prefix caching 是「借用别人算过的、且和自己开头一模一样的那部分」</strong>。前者是推理的必备机制，后者是在 KV cache 之上、借助 PagedAttention 的物理块共享能力做的一层跨请求优化。</p>
+<p>如果 prompt 很长，且开启了 <code>--enable-chunked-prefill</code>，这次 prefill 会被按 <code>--max-num-batched-tokens</code> 的预算拆成多轮，每轮只算一块，剩余预算留给正在 decode 的请求，避免长 prompt 把同批次的 decode 请求卡住。</p>
+<h4 id="阶段-4：decode-循环——PagedAttention-的主场"><a href="#阶段-4：decode-循环——PagedAttention-的主场" class="headerlink" title="阶段 4：decode 循环——PagedAttention 的主场"></a>阶段 4：decode 循环——PagedAttention 的主场</h4><p>prefill 结束后请求转入 decode：此后每轮迭代只输入上一个新生成的 token，worker 通过 <strong>PagedAttention</strong> 按 block table 读取历史 KV cache、追加新 token 的 K、V，再采样出下一个 token。</p>
+<p>PagedAttention 的价值在这里体现得最充分：</p>
+<ul>
+<li>历史 KV cache 分散在不连续的物理块里，靠 block table 拼成逻辑上连续的序列，<strong>无需为每条请求预留连续显存</strong>，内部碎片几乎消除；</li>
+<li>请求长度增长时按需再借新 block，用完即还，不同请求的物理块可以灵活复用；</li>
+<li>相同前缀的请求共享物理块，这正是 prefix caching 的底层基础。</li>
+</ul>
+<p>每一轮 decode 结束后，控制权回到 Engine Core：调度器重新组批，检查是否有请求结束、是否有新请求到达、显存池是否还够。<strong>prefill 只发生一次，decode 会重复很多次</strong>，而每一轮迭代都是一次完整的「调度 → 下发 → 前向计算 → 采样 → 回传」循环。</p>
+<h4 id="阶段-5：结束与返回"><a href="#阶段-5：结束与返回" class="headerlink" title="阶段 5：结束与返回"></a>阶段 5：结束与返回</h4><p>当生成到 EOS 或达到 <code>max_tokens</code> 时，该请求被移出批次，它占用的 KV block 归还到显存池供后续请求复用；API Server 把累积的 token 做 detokenize，按流式（SSE）或一次性响应的方式返回给客户端。</p>
+<h4 id="各环节职责一览"><a href="#各环节职责一览" class="headerlink" title="各环节职责一览"></a>各环节职责一览</h4><table>
+<thead>
+<tr>
+<th>环节</th>
+<th>由谁负责</th>
+<th>用到的机制</th>
+<th>显存影响</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>加载权重</td>
+<td>GPU worker</td>
+<td>量化（AWQ &#x2F; GPTQ &#x2F; FP8）</td>
+<td>固定占用，量化后大幅下降</td>
+</tr>
+<tr>
+<td>划分显存池</td>
+<td>Engine Core + worker</td>
+<td><code>--gpu-memory-utilization</code>、<code>--block-size</code></td>
+<td>决定 KV cache 池容量</td>
+</tr>
+<tr>
+<td>接收与 tokenize</td>
+<td>API Server</td>
+<td>对话模板</td>
+<td>不占 GPU 显存</td>
+</tr>
+<tr>
+<td>组批与分配 block</td>
+<td>Engine Core 调度器</td>
+<td>连续批处理、抢占</td>
+<td>从池中借出 block</td>
+</tr>
+<tr>
+<td>prefill</td>
+<td>GPU worker</td>
+<td>KV cache 建立、prefix caching、分块 prefill</td>
+<td>写入新 block</td>
+</tr>
+<tr>
+<td>decode</td>
+<td>GPU worker</td>
+<td>PagedAttention 读写、连续批处理</td>
+<td>逐轮追加 block</td>
+</tr>
+<tr>
+<td>结束回收</td>
+<td>调度器 + worker</td>
+<td>释放 block</td>
+<td>block 归还池中</td>
+</tr>
+</tbody></table>
+<p>一句话串起来：<strong>权重在启动时占住显存，显存池在启动时划好；请求进来后由 Engine Core 每轮组批，GPU worker 在 prefill 时建立 KV cache（prefix caching 可复用前缀），在 decode 时靠 PagedAttention 按页读写缓存；连续批处理让每轮迭代都能换人，量化则从源头把权重压小、给 KV cache 腾出更多空间。</strong></p>
+<pre><code class="highlight mermaid">flowchart TD
+  A[&quot;客户端发起请求&lt;br/&gt;POST /v1/chat/completions&quot;] --&gt; B[&quot;API Server&lt;br/&gt;解析请求 · 套对话模板 · tokenize&quot;]
+  B --&gt; C[&quot;Engine Core&lt;br/&gt;请求入等待队列 waiting&quot;]
+  C --&gt; D&#123;&quot;调度器本轮组批&lt;br/&gt;显存池中 KV block 是否够分配&quot;&#125;
+  D -- &quot;不够&quot; --&gt; E[&quot;抢占：换出 Swap 或 重算 Recompute&quot;]
+  E --&gt; D
+  D -- &quot;够&quot; --&gt; F[&quot;下发执行计划给 GPU worker&lt;br/&gt;请求列表 + block table + 本轮 token 数&quot;]
+  F --&gt; G&#123;&quot;prefix caching 是否命中前缀&quot;&#125;
+  G -- &quot;命中&quot; --&gt; H[&quot;复用已有物理块&lt;br/&gt;只对后缀做 prefill&quot;]
+  G -- &quot;未命中&quot; --&gt; I[&quot;prefill：整段 prompt 前向计算&lt;br/&gt;写入 KV cache，得到首个 token&quot;]
+  H --&gt; I
+  I --&gt; J[&quot;decode：每轮只输入新 token&lt;br/&gt;PagedAttention 按 block table 读写 KV cache&quot;]
+  J --&gt; K&#123;&quot;是否遇到 EOS&lt;br/&gt;或达到 max_tokens&quot;&#125;
+  K -- &quot;否&quot; --&gt; L[&quot;采样下一个 token&lt;br/&gt;追加 K、V 到 KV cache&quot;]
+  L --&gt; D
+  K -- &quot;是&quot; --&gt; M[&quot;移出批次 · KV block 归还显存池&quot;]
+  M --&gt; N[&quot;detokenize&lt;br/&gt;流式或一次性返回响应&quot;]
+  N --&gt; O[&quot;客户端收到完整回答&quot;]</code></pre>
+
+<p>图注：请求先由 API Server 接收并 tokenize，进入等待队列后由 Engine Core 的调度器按轮组批（连续批处理），并从启动时划好的显存池中分配 KV block；执行计划下发给 GPU worker 后，prefill 阶段一次性算出整段 prompt 的 KV cache 并产出首个 token（prefix caching 命中时只算后缀），随后进入 decode 循环，每轮由 PagedAttention 按 block table 读写缓存、追加新 token；直到遇到 EOS 或达到长度上限，请求被移出批次、block 归还显存池，由 API Server 把 token 还原成文本返回客户端。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://Y3148y.github.io">听雨</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://y3148y.github.io/2026/10/20/vllm-intro/">https://y3148y.github.io/2026/10/20/vllm-intro/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://Y3148y.github.io" target="_blank">听雨</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/LLM/">LLM</a><a class="post-meta__tags" href="/tags/%E6%8E%A8%E7%90%86/">推理</a></div><div class="post-share"><div class="social-share" data-image="/img/art/vangogh-starry-night.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"><img class="cover" src="/img/art/monet-parasol-1875.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底</div></div><div class="info-2"><div class="info-item-1"> 1. 面试题还原面试官问：多轮对话如何处理？   一个场景题：如果一个员工问「工作时长是多少？年假是多少？调休是多少？」，接着又问「这个怎么算？」——你的「这个」是怎么处理的？怎么让大模型知道「这个」指代什么？ 这道题表面在问「多轮对话」，实际在考三件事：  指代消解：能不能把「这个」还原成上一轮的具体实体（工作时长 &#x2F; 年假 &#x2F; 调休）。 状态管理：多轮信息存在哪、怎么更新、怎么不串味。 工程兜底：模型抽错了怎么办、缓存怎么复用、答不出来怎么降级。  一句话总结答题主线：状态管理 + 缓存复用 + 校验兜底。 2. 为什么多轮对话难：问题本质单轮 RAG 的链路是「问题 → 检索 → 生成」，问题本身是自包含的。多轮对话里，用户的问题往往是不完整的：    轮次 用户输入 是否自包含 缺失信息    第 1 轮 工作时长是多少？ 是 无   第 2 轮 年假是多少？ 是 无   第 3 轮 调休是多少？ 是 无   第 4 轮 这个怎么算？ 否 「这个」指代谁   如果直接把「这个怎么算？」丢给检索，向量库里全是「这个」「怎么算」这种无信息量的词，召回必然...</div></div></div></a><a class="pagination-related" href="/2026/10/20/blog-admin-04-theme/" title="博客后台开发 04：主题系统与护眼底色"><img class="cover" src="/img/art/monet-waterlilies-1906.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">博客后台开发 04：主题系统与护眼底色</div></div><div class="info-2"><div class="info-item-1"> 从「白色刺眼」说起上一篇讲完部署和 CI，后台的骨架算是齐了。这一篇回到界面上——因为我每天盯着它写文章，发现一个很实际的问题：白色面板盯久了刺眼。 最初后台只有一套配色：浅灰底、白面板、深字。晚上写文章的时候，尤其是房间灯关了只剩屏幕亮着，那片白是真的晃眼。深色模式后来加了，但深色模式下我还要看图片预览，不是所有场景都适合。 于是我想要的效果是这样的：  深色 &#x2F; 亮色照旧，跟随系统，也能手动锁死； 再来一档护眼底色——经典的豆沙绿那种，整个界面沉在一片低饱和的绿里； 护眼的深浅可调，因为「多深的绿」这件事只有眼睛说了算，拖一下滑杆就行。  做下来一共踩了三个值得记录的坑：主题档位怎么组织、系统暗色怎么会把护眼色盖掉、以及滑杆那个「正中就是原色」的锚点是怎么反解出来的。 主题档位：一份数据，六种皮肤先把颜色从硬编码里拿出来。所有界面颜色都收进 CSS 变量： 12345678910:root &#123;  --bg: #f6f7f9;        /* 页面底色 */  --panel: #ffffff;     /* 面板：顶栏、侧栏、弹层、toast */ ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解"><div class="cover" style="background: /img/art/monet-waterlilies-1906.jpg"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-27</div><div class="info-item-2">KV Cache详解</div></div><div class="info-2"><div class="info-item-1"> KV Cache一、q、k、v 分别是什么大模型自回归生成时，每一轮都会为新的 token 生成新的 k、v、q，历史的 k、v 直接复用，而 q 本轮用完即丢。 在 Transformer 的注意力机制里，每个 token 的隐状态会经过三组不同的线性投影，得到三个向量 q、k、v：  q（Query，查询）：当前 token「想找什么信息」，用来和历史的 k 做匹配打分。 k（Key，键）：每个 token「能提供什么信息的索引」，被后续 token 的 q 检索。 v（Value，值）：每个 token「实际携带的内容」，按注意力权重加权求和后输出。  用一句话概括：q 是提问，k 是目录，v 是正文。注意力分数 softmax(q·kᵀ/√d) 决定从每个 v 里取多少内容。 二、q、k、v 是怎么得到的q、k、v 三者是同一套流程：当前 token 的隐状态分别乘上三组不同的权重矩阵，就得到三个向量，区别只在于用的是哪一组权重。 设第 t 步新 token 的隐状态为 x_t（维度 d_model），三组投影矩阵分别为 W_q、W_k、W_v（形状 d_model ×...</div></div></div></a><a class="pagination-related" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"><div class="cover" style="background: /img/art/monet-parasol-1875.jpg"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-26</div><div class="info-item-2">Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底</div></div><div class="info-2"><div class="info-item-1"> 1. 面试题还原面试官问：多轮对话如何处理？   一个场景题：如果一个员工问「工作时长是多少？年假是多少？调休是多少？」，接着又问「这个怎么算？」——你的「这个」是怎么处理的？怎么让大模型知道「这个」指代什么？ 这道题表面在问「多轮对话」，实际在考三件事：  指代消解：能不能把「这个」还原成上一轮的具体实体（工作时长 &#x2F; 年假 &#x2F; 调休）。 状态管理：多轮信息存在哪、怎么更新、怎么不串味。 工程兜底：模型抽错了怎么办、缓存怎么复用、答不出来怎么降级。  一句话总结答题主线：状态管理 + 缓存复用 + 校验兜底。 2. 为什么多轮对话难：问题本质单轮 RAG 的链路是「问题 → 检索 → 生成」，问题本身是自包含的。多轮对话里，用户的问题往往是不完整的：    轮次 用户输入 是否自包含 缺失信息    第 1 轮 工作时长是多少？ 是 无   第 2 轮 年假是多少？ 是 无   第 3 轮 调休是多少？ 是 无   第 4 轮 这个怎么算？ 否 「这个」指代谁   如果直接把「这个怎么算？」丢给检索，向量库里全是「这个」「怎么算」这种无信息量的词，召回必然...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="giscus-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">听雨</div><div class="author-info-description">welcome to my little nut</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">24</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">42</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Y3148y"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/Y3148y" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="welcome-content" id="welcome-info"><b><center>🎉 欢迎信息 🎉</center>&emsp;&emsp;欢迎来到我的小站，正在识别你的位置…</b></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#vLLM"><span class="toc-number">2.</span> <span class="toc-text">vLLM</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B"><span class="toc-number">2.1.</span> <span class="toc-text">快速上手</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#KV-cache"><span class="toc-number">2.2.</span> <span class="toc-text">KV cache</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Q%E3%80%81K%E3%80%81V"><span class="toc-number">2.2.1.</span> <span class="toc-text">Q、K、V</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-KV-cache"><span class="toc-number">2.2.2.</span> <span class="toc-text">为什么需要 KV cache</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#PagedAttention%EF%BC%9A%E5%83%8F%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F%E7%AE%A1%E7%90%86%E5%86%85%E5%AD%98%E4%B8%80%E6%A0%B7%E7%AE%A1%E7%90%86-KV-cache"><span class="toc-number">2.2.3.</span> <span class="toc-text">PagedAttention：像操作系统管理内存一样管理 KV cache</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#vLLM-%E4%B8%AD%E4%B8%8E-KV-cache-%E7%9B%B8%E5%85%B3%E7%9A%84%E5%85%B3%E9%94%AE%E5%90%AF%E5%8A%A8%E5%8F%82%E6%95%B0"><span class="toc-number">2.2.4.</span> <span class="toc-text">vLLM 中与 KV cache 相关的关键启动参数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BC%80%E5%90%AF-prefix-caching-%E7%9A%84%E5%90%AF%E5%8A%A8%E7%A4%BA%E4%BE%8B"><span class="toc-number">2.2.5.</span> <span class="toc-text">开启 prefix caching 的启动示例</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%89%B9%E5%A4%84%E7%90%86%E4%B8%8E%E8%B0%83%E5%BA%A6%E5%99%A8"><span class="toc-number">2.3.</span> <span class="toc-text">批处理与调度器</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BB%8E%E9%9D%99%E6%80%81%E6%89%B9%E5%A4%84%E7%90%86%E5%88%B0%E8%BF%9E%E7%BB%AD%E6%89%B9%E5%A4%84%E7%90%86"><span class="toc-number">2.3.1.</span> <span class="toc-text">从静态批处理到连续批处理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B0%83%E5%BA%A6%E5%99%A8%E7%9A%84%E5%9F%BA%E6%9C%AC%E6%B5%81%E7%A8%8B"><span class="toc-number">2.3.2.</span> <span class="toc-text">调度器的基本流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%8A%A2%E5%8D%A0%EF%BC%9A%E6%98%BE%E5%AD%98%E4%B8%8D%E5%A4%9F%E6%97%B6%E6%80%8E%E4%B9%88%E5%8A%9E"><span class="toc-number">2.3.3.</span> <span class="toc-text">抢占：显存不够时怎么办</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E8%B0%83%E5%BA%A6%E7%9B%B8%E5%85%B3%E7%9A%84%E5%B8%B8%E7%94%A8%E5%8F%82%E6%95%B0"><span class="toc-number">2.3.4.</span> <span class="toc-text">与调度相关的常用参数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E4%B8%AA%E5%BC%80%E5%90%AF%E5%88%86%E5%9D%97-prefill-%E7%9A%84%E5%90%AF%E5%8A%A8%E7%A4%BA%E4%BE%8B"><span class="toc-number">2.3.5.</span> <span class="toc-text">一个开启分块 prefill 的启动示例</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%87%8F%E5%8C%96"><span class="toc-number">2.4.</span> <span class="toc-text">量化</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E9%87%8F%E5%8C%96"><span class="toc-number">2.4.1.</span> <span class="toc-text">为什么需要量化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B8%B8%E8%A7%81%E7%9A%84%E9%87%8F%E5%8C%96%E6%96%B9%E6%A1%88"><span class="toc-number">2.4.2.</span> <span class="toc-text">常见的量化方案</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#vLLM-%E4%B8%AD%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8%E9%87%8F%E5%8C%96%E6%A8%A1%E5%9E%8B"><span class="toc-number">2.4.3.</span> <span class="toc-text">vLLM 中如何使用量化模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%87%8F%E5%8C%96%E4%B8%8E-KV-cache-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">2.4.4.</span> <span class="toc-text">量化与 KV cache 的关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%9E%E8%B7%B5%E5%BB%BA%E8%AE%AE"><span class="toc-number">2.4.5.</span> <span class="toc-text">实践建议</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#GPU-worker"><span class="toc-number">2.5.</span> <span class="toc-text">GPU worker</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#GPU-worker-%E6%98%AF%E4%BB%80%E4%B9%88"><span class="toc-number">2.5.1.</span> <span class="toc-text">GPU worker 是什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E6%AC%A1%E8%BF%AD%E4%BB%A3%E9%87%8C-worker-%E5%81%9A%E4%BA%86%E4%BB%80%E4%B9%88"><span class="toc-number">2.5.2.</span> <span class="toc-text">一次迭代里 worker 做了什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8D%95%E5%8D%A1%E4%B8%8E%E5%A4%9A%E5%8D%A1%EF%BC%9Aworker-%E7%9A%84%E7%BB%84%E7%BB%87%E6%96%B9%E5%BC%8F"><span class="toc-number">2.5.3.</span> <span class="toc-text">单卡与多卡：worker 的组织方式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8E%E5%89%8D%E9%9D%A2%E5%87%A0%E8%8A%82%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">2.5.4.</span> <span class="toc-text">与前面几节的关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%9E%E8%B7%B5%E4%B8%AD%E7%9A%84%E5%85%B3%E6%B3%A8%E7%82%B9"><span class="toc-number">2.5.5.</span> <span class="toc-text">实践中的关注点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">2.6.</span> <span class="toc-text">总结</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E6%AC%A1%E5%AE%8C%E6%95%B4%E7%9A%84%E8%BE%93%E5%85%A5%E8%BE%93%E5%87%BA%E8%BF%87%E7%A8%8B"><span class="toc-number">2.6.1.</span> <span class="toc-text">一次完整的输入输出过程</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%98%B6%E6%AE%B5-0%EF%BC%9A%E5%90%AF%E5%8A%A8%E6%97%B6%E6%8A%8A%E6%98%BE%E5%AD%98%E5%88%87%E6%88%90%E4%B8%A4%E5%8D%8A"><span class="toc-number">2.6.1.1.</span> <span class="toc-text">阶段 0：启动时把显存切成两半</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%98%B6%E6%AE%B5-1%EF%BC%9A%E8%AF%B7%E6%B1%82%E8%BF%9B%E5%85%A5-Engine-Core"><span class="toc-number">2.6.1.2.</span> <span class="toc-text">阶段 1：请求进入 Engine Core</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%98%B6%E6%AE%B5-2%EF%BC%9A%E8%B0%83%E5%BA%A6%E5%99%A8%E7%BB%84%E6%89%B9%EF%BC%88%E8%BF%9E%E7%BB%AD%E6%89%B9%E5%A4%84%E7%90%86%E5%9C%A8%E8%BF%99%E9%87%8C%E5%8F%91%E7%94%9F%EF%BC%89"><span class="toc-number">2.6.1.3.</span> <span class="toc-text">阶段 2：调度器组批（连续批处理在这里发生）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%98%B6%E6%AE%B5-3%EF%BC%9Aprefill%E2%80%94%E2%80%94%E5%BB%BA%E7%AB%8B-KV-cache"><span class="toc-number">2.6.1.4.</span> <span class="toc-text">阶段 3：prefill——建立 KV cache</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%98%B6%E6%AE%B5-4%EF%BC%9Adecode-%E5%BE%AA%E7%8E%AF%E2%80%94%E2%80%94PagedAttention-%E7%9A%84%E4%B8%BB%E5%9C%BA"><span class="toc-number">2.6.1.5.</span> <span class="toc-text">阶段 4：decode 循环——PagedAttention 的主场</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%98%B6%E6%AE%B5-5%EF%BC%9A%E7%BB%93%E6%9D%9F%E4%B8%8E%E8%BF%94%E5%9B%9E"><span class="toc-number">2.6.1.6.</span> <span class="toc-text">阶段 5：结束与返回</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%90%84%E7%8E%AF%E8%8A%82%E8%81%8C%E8%B4%A3%E4%B8%80%E8%A7%88"><span class="toc-number">2.6.1.7.</span> <span class="toc-text">各环节职责一览</span></a></li></ol></li></ol></li></ol></li></ol></div></div><div class="card-widget card-post-series"><div class="item-headline"><i class="fa-solid fa-layer-group"></i><span>系列文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/vllm-intro/" title="初识vLLM"><img src="/img/art/vangogh-starry-night.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="初识vLLM"></a><div class="content"><a class="title" href="/2026/10/20/vllm-intro/" title="初识vLLM">初识vLLM</a><time datetime="2026-10-20T17:52:00.000Z" title="发表于 2026-10-20 17:52:00">2026-10-20</time></div></div></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"/></a><div class="content"><a class="title" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离">Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离</a><time datetime="2026-10-27T15:27:00.000Z" title="发表于 2026-10-27 15:27:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="KV Cache详解"/></a><div class="content"><a class="title" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解">KV Cache详解</a><time datetime="2026-10-27T10:54:00.000Z" title="发表于 2026-10-27 10:54:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"><img src="/img/art/monet-parasol-1875.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"/></a><div class="content"><a class="title" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底">Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底</a><time datetime="2026-10-26T20:41:00.000Z" title="发表于 2026-10-26 20:41:00">2026-10-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/vllm-intro/" title="初识vLLM"><img src="/img/art/vangogh-starry-night.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="初识vLLM"/></a><div class="content"><a class="title" href="/2026/10/20/vllm-intro/" title="初识vLLM">初识vLLM</a><time datetime="2026-10-20T17:52:00.000Z" title="发表于 2026-10-20 17:52:00">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/blog-admin-04-theme/" title="博客后台开发 04：主题系统与护眼底色"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 04：主题系统与护眼底色"/></a><div class="content"><a class="title" href="/2026/10/20/blog-admin-04-theme/" title="博客后台开发 04：主题系统与护眼底色">博客后台开发 04：主题系统与护眼底色</a><time datetime="2026-10-20T09:00:00.000Z" title="发表于 2026-10-20 09:00:00">2026-10-20</time></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(/img/sunrise.webp);"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 听雨</span></div><div class="footer_custom_text">你终于看到这里，希望你能天天开心</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.5"></script><script src="/js/main.js?v=5.5.5"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('/js/libs/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const getGiscusTheme = theme => theme === 'dark' ? 'dark' : 'light'
+
+  const createScriptElement = config => {
+    const ele = document.createElement('script')
+    Object.entries(config).forEach(([key, value]) => {
+      ele.setAttribute(key, value)
+    })
+    return ele
+  }
+
+  const loadGiscus = (el = document, key) => {
+    const mappingConfig = isShuoshuo
+      ? { 'data-mapping': 'specific', 'data-term': key }
+      : { 'data-mapping': (option && option['data-mapping']) || 'pathname' }
+
+    const giscusConfig = {
+      src: 'https://giscus.app/client.js',
+      'data-repo': 'Y3148y/my-blog-comments',
+      'data-repo-id': 'R_kgDOTV5zww',
+      'data-category-id': 'DIC_kwDOTV5zw84DBBql',
+      'data-theme': getGiscusTheme(document.documentElement.getAttribute('data-theme')),
+      'data-reactions-enabled': '1',
+      crossorigin: 'anonymous',
+      async: true,
+      ...option,
+      ...mappingConfig
+    }
+
+    const scriptElement = createScriptElement(giscusConfig)
+
+    el.querySelector('#giscus-wrap').appendChild(scriptElement)
+
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGiscus = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+  }
+
+  const changeGiscusTheme = theme => {
+    const iframe = document.querySelector('#giscus-wrap iframe')
+    if (iframe) {
+      const message = {
+        giscus: {
+          setConfig: {
+            theme: getGiscusTheme(theme)
+          }
+        }
+      }
+      iframe.contentWindow.postMessage(message, 'https://giscus.app')
+    }
+  }
+
+  btf.addGlobalFn('themeChange', changeGiscusTheme, 'giscus')
+
+  if (isShuoshuo) {
+    'Giscus' === 'Giscus'
+      ? window.shuoshuoComment = { loadComment: loadGiscus }
+      : window.loadOtherComment = loadGiscus
+    return
+  }
+
+  if ('Giscus' === 'Giscus' || !false) {
+    if (false) btf.loadComment(document.getElementById('giscus-wrap'), loadGiscus)
+    else loadGiscus()
+  } else {
+    window.loadOtherComment = loadGiscus
+  }
+})()</script></div><script defer src="/js/welcome.js"></script><script async src="/js/title.js"></script><script defer src="/js/global-player.js"></script><script defer src="/js/art-viewer.js"></script><script defer src="/js/painting-engine.js"></script><script defer src="/js/paint-scroll-transition.js?v=1"></script><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.5"></script></div></div><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"right","width":150,"height":300},"mobile":{"show":true},"react":{"opacity":1,"shadow":true},"log":false});</script><script>window.MathJax={"tex":{"inlineMath":[["$","$"],["\\(","\\)"]],"displayMath":[["$$","$$"],["\\[","\\]"]],"processEscapes":true,"tags":"none"},"svg":{"fontCache":"global"},"options":{"enableMenu":false,"skipHtmlTags":["script","noscript","style","textarea","pre","code"]}};</script>
+<script defer src="/js/libs/tex-svg.js"></script>
+<script>document.addEventListener("pjax:complete",function(){if(window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise();});</script>
+</body></html>

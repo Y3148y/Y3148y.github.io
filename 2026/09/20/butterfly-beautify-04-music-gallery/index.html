@@ -1,0 +1,822 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>基于Butterfly的网站美化教程04：Music播放器与Movie画廊模块 | 听雨</title><meta name="author" content="听雨"><meta name="copyright" content="听雨"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="前言上一篇我们把顶部导航菜单里加进了两个独立页面：&#x2F;music&#x2F; 和 &#x2F;movies&#x2F;。这篇就把两页对应的模块从零搭起来：  Music：全站底部常驻一个迷你悬浮播放器（原生 &lt;audio&gt;，不依赖 APlayer），配一个歌单页，点歌即切。 Movie：本站不放电影，改放画——一个印象派油画画廊，点击封面弹出高清原图 + 底部配文。  两个模块都是纯前端 + 静态 JSON &amp;#x2">
+<meta property="og:type" content="article">
+<meta property="og:title" content="基于Butterfly的网站美化教程04：Music播放器与Movie画廊模块">
+<meta property="og:url" content="https://y3148y.github.io/2026/09/20/butterfly-beautify-04-music-gallery/index.html">
+<meta property="og:site_name" content="听雨">
+<meta property="og:description" content="前言上一篇我们把顶部导航菜单里加进了两个独立页面：&#x2F;music&#x2F; 和 &#x2F;movies&#x2F;。这篇就把两页对应的模块从零搭起来：  Music：全站底部常驻一个迷你悬浮播放器（原生 &lt;audio&gt;，不依赖 APlayer），配一个歌单页，点歌即切。 Movie：本站不放电影，改放画——一个印象派油画画廊，点击封面弹出高清原图 + 底部配文。  两个模块都是纯前端 + 静态 JSON &amp;#x2">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://y3148y.github.io/img/art/monet-waterlilies-sunset.jpg">
+<meta property="article:published_time" content="2026-09-20T12:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-20T12:00:00.000Z">
+<meta property="article:author" content="听雨">
+<meta property="article:tag" content="Butterfly">
+<meta property="article:tag" content="Hexo">
+<meta property="article:tag" content="博客美化">
+<meta property="article:tag" content="画廊">
+<meta property="article:tag" content="音乐">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://y3148y.github.io/img/art/monet-waterlilies-sunset.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "基于Butterfly的网站美化教程04：Music播放器与Movie画廊模块",
+  "url": "https://y3148y.github.io/2026/09/20/butterfly-beautify-04-music-gallery/",
+  "image": "https://y3148y.github.io/img/art/monet-waterlilies-sunset.jpg",
+  "datePublished": "2026-09-20T12:00:00.000Z",
+  "dateModified": "2026-09-20T12:00:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "听雨",
+      "url": "https://Y3148y.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/cat.png"><link rel="canonical" href="https://y3148y.github.io/2026/09/20/butterfly-beautify-04-music-gallery/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.5"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '基于Butterfly的网站美化教程04：Music播放器与Movie画廊模块',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><link rel="stylesheet" href="/css/painting.css"><link rel="stylesheet" href="/css/transition.css?v=1"><style>
+  /* MathJax 3 (tex-svg) 版式：宽公式横向滚动，块级公式居中 */
+  mjx-container {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    padding-bottom: 4px;
+  }
+  mjx-container[display="true"] {
+    display: block !important;
+    margin: 1em 0;
+    text-align: center;
+  }
+  /* SVG 输出的字形默认 fill 是黑色，暗色主题下不可见，跟随正文颜色 */
+  mjx-container svg {
+    fill: currentColor;
+  }
+</style>
+<meta name="generator" content="Hexo 8.1.2"></head><body><script>window.paceOptions = {
+  restartOnPushState: false
+}
+
+btf.addGlobalFn('pjaxSend', () => {
+  Pace.restart()
+}, 'pace_restart')
+
+</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/themes/blue/pace-theme-minimal.min.css"/><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><div class="bg-animation" id="web_bg" style="background-image: url(/img/sea.gif);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">24</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">42</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/art/monet-waterlilies-sunset.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">听雨</span></a><a class="nav-page-title" href="/"><span class="site-name">基于Butterfly的网站美化教程04：Music播放器与Movie画廊模块</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">基于Butterfly的网站美化教程04：Music播放器与Movie画廊模块</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-09-20T12:00:00.000Z" title="发表于 2026-09-20 12:00:00">2026-09-20</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-09-20T12:00:00.000Z" title="更新于 2026-09-20 12:00:00">2026-09-20</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E5%AD%A6%E4%B9%A0/">技术学习</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>上一篇我们把顶部导航菜单里加进了两个独立页面：<code>/music/</code> 和 <code>/movies/</code>。这篇就把两页对应的<strong>模块</strong>从零搭起来：</p>
+<ul>
+<li><strong>Music</strong>：全站底部常驻一个迷你悬浮播放器（原生 <code>&lt;audio&gt;</code>，不依赖 APlayer），配一个歌单页，点歌即切。</li>
+<li><strong>Movie</strong>：本站不放电影，改放画——一个印象派油画画廊，点击封面弹出高清原图 + 底部配文。</li>
+</ul>
+<p>两个模块都是纯前端 + 静态 JSON &#x2F; YAML，不引入任何第三方服务，数据驱动，加歌加画<strong>不用碰代码</strong>。</p>
+<h1 id="整体架构"><a href="#整体架构" class="headerlink" title="整体架构"></a>整体架构</h1><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">source/</span><br><span class="line">├── music/</span><br><span class="line">│   ├── index.md              ← 歌单页（front matter + 列表容器）</span><br><span class="line">│   ├── music.json            ← 歌单数据（tools/build-playlist.js 生成，勿手改）</span><br><span class="line">│   └── audio/                ← *.mp3 本地音频</span><br><span class="line">├── movies/</span><br><span class="line">│   └── index.md              ← 画册页（&#123;% art_gallery %&#125; 标签渲染）</span><br><span class="line">├── _data/</span><br><span class="line">│   └── art.yml               ← 画廊数据源（加画只改这里）</span><br><span class="line">└── img/</span><br><span class="line">    ├── art/                  ← 画作原图</span><br><span class="line">    └── music/                ← 歌曲封面（可选）</span><br></pre></td></tr></table></figure>
+
+<h1 id="第一步：菜单与页面骨架"><a href="#第一步：菜单与页面骨架" class="headerlink" title="第一步：菜单与页面骨架"></a>第一步：菜单与页面骨架</h1><h2 id="菜单配置"><a href="#菜单配置" class="headerlink" title="菜单配置"></a>菜单配置</h2><p><code>_config.butterfly.yml</code> 顶部：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">menu:</span></span><br><span class="line">  <span class="attr">Home:</span> <span class="string">/</span> <span class="string">||</span> <span class="string">fas</span> <span class="string">fa-home</span></span><br><span class="line">  <span class="string">List||fas</span> <span class="attr">fa-list:</span></span><br><span class="line">    <span class="attr">Music:</span> <span class="string">/music/</span> <span class="string">||</span> <span class="string">fas</span> <span class="string">fa-music</span></span><br><span class="line">    <span class="attr">Movie:</span> <span class="string">/movies/</span> <span class="string">||</span> <span class="string">fas</span> <span class="string">fa-video</span></span><br><span class="line">  <span class="attr">categories:</span> <span class="string">/categories/</span> <span class="string">||</span> <span class="string">fas</span> <span class="string">fa-folder-open</span></span><br><span class="line">  <span class="attr">tags:</span> <span class="string">/tags/</span> <span class="string">||</span> <span class="string">fas</span> <span class="string">fa-tags</span></span><br><span class="line">  <span class="attr">comments:</span> <span class="string">/comments/</span> <span class="string">||</span> <span class="string">fas</span> <span class="string">fa-comments</span></span><br><span class="line">  <span class="attr">about:</span> <span class="string">/about/</span> <span class="string">||</span> <span class="string">fas</span> <span class="string">fa-user</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>格式固定为 <code>显示文字: 路径 || FontAwesome 图标类名</code>，带子菜单的项用 <code>||fas fa-list</code> 括起来的二级列表。</p>
+</blockquote>
+<h2 id="页面本身"><a href="#页面本身" class="headerlink" title="页面本身"></a>页面本身</h2><p>Hexo 的页面就是 <code>source/&lt;名字&gt;/index.md</code>，front matter 里写 <code>title</code> 和 <code>top_img</code>（页头大图）：</p>
+<p><code>source/music/index.md</code>：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">---</span><br><span class="line">title: Music</span><br><span class="line">date: 2026-09-18 12:00:00</span><br><span class="line"><span class="section">top<span class="emphasis">_img: /img/sea.webp</span></span></span><br><span class="line"><span class="emphasis"><span class="section">---</span></span></span><br><span class="line"><span class="emphasis"><span class="section"></span></span></span><br><span class="line"><span class="emphasis"><span class="section">全站底部常驻一个悬浮播放器。这里是歌单，点击任意一首立即切换播放。</span></span></span><br><span class="line"><span class="emphasis"><span class="section"></span></span></span><br><span class="line"><span class="emphasis"><span class="section"><span class="language-xml"><span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;song-list-wrap&quot;</span>&gt;</span></span></span></span></span><br><span class="line"><span class="emphasis"><span class="section">  <span class="language-xml"><span class="tag">&lt;<span class="name">h2</span> <span class="attr">class</span>=<span class="string">&quot;music-section-title&quot;</span>&gt;</span></span>歌单 · Playlist<span class="language-xml"><span class="tag">&lt;/<span class="name">h2</span>&gt;</span></span></span></span></span><br><span class="line"><span class="emphasis"><span class="section">  <span class="language-xml"><span class="tag">&lt;<span class="name">ul</span> <span class="attr">class</span>=<span class="string">&quot;song-list&quot;</span> <span class="attr">id</span>=<span class="string">&quot;song-list&quot;</span>&gt;</span></span><span class="language-xml"><span class="tag">&lt;<span class="name">li</span> <span class="attr">class</span>=<span class="string">&quot;song-item song-loading&quot;</span>&gt;</span></span>加载歌单中…<span class="language-xml"><span class="tag">&lt;/<span class="name">li</span>&gt;</span></span><span class="language-xml"><span class="tag">&lt;/<span class="name">ul</span>&gt;</span></span></span></span></span><br><span class="line"><span class="emphasis"><span class="section"><span class="language-xml"><span class="tag">&lt;/<span class="name">div</span>&gt;</span></span></span></span></span><br><span class="line"><span class="emphasis"><span class="section"><span class="language-xml"><span class="tag">&lt;<span class="name">script</span>&gt;</span></span>/* 见下方「歌单页渲染」 */<span class="language-xml"><span class="tag">&lt;/<span class="name">script</span>&gt;</span></span></span></span></span><br></pre></td></tr></table></figure>
+
+<p><code>source/movies/index.md</code>：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">---</span><br><span class="line">title: Movies</span><br><span class="line">date: 2026-09-18 12:30:00</span><br><span class="line"><span class="section">top<span class="emphasis">_img: /img/art/monet-waterlilies-sunset.jpg</span></span></span><br><span class="line"><span class="emphasis"><span class="section">---</span></span></span><br><span class="line"><span class="emphasis"><span class="section"></span></span></span><br><span class="line"><span class="emphasis"><span class="section">这里不放电影，改放画。挑了几幅印象派大师的名作，点击封面可查看高清原图。</span></span></span><br><span class="line"><span class="emphasis"><span class="section"></span></span></span><br><span class="line"><span class="emphasis"><span class="section">&#123;% art_</span>gallery %&#125;</span></span><br></pre></td></tr></table></figure>
+
+<h1 id="Music-模块"><a href="#Music-模块" class="headerlink" title="Music 模块"></a>Music 模块</h1><h2 id="1-音频文件放哪里"><a href="#1-音频文件放哪里" class="headerlink" title="1. 音频文件放哪里"></a>1. 音频文件放哪里</h2><p>把 mp3 丢进 <code>source/music/audio/</code> 即可，文件名就是歌单的唯一标识：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">source/music/audio/</span><br><span class="line">├── time-machine-01.mp3</span><br><span class="line">├── zhou-qingtian-01.mp3</span><br><span class="line">├── zhou-xingqing-02.mp3</span><br><span class="line">└── zhou-geqian-03.mp3</span><br></pre></td></tr></table></figure>
+
+<h3 id="格式与转码（踩坑）"><a href="#格式与转码（踩坑）" class="headerlink" title="格式与转码（踩坑）"></a>格式与转码（踩坑）</h3><p>浏览器 <code>&lt;audio&gt;</code> 对 <strong>mp3</strong>（H.264 音频）兼容性最好，其次是 ogg&#x2F;m4a。网上下的无损 FLAC 不能直接播放，需要先转 mp3：</p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 用带 libmp3lame 的 ffmpeg（没有该编码器的构建会报错 Unknown encoder）</span></span><br><span class="line">&amp; <span class="string">&quot;C:\...\ffmpeg.exe&quot;</span> <span class="literal">-i</span> <span class="string">&quot;原曲.flac&quot;</span> <span class="literal">-c</span>:a libmp3lame <span class="literal">-q</span>:a <span class="number">2</span> <span class="literal">-metadata</span> title=<span class="string">&quot;曲名&quot;</span> <span class="literal">-metadata</span> artist=<span class="string">&quot;歌手&quot;</span> <span class="string">&quot;source\music\audio\xxx-01.mp3&quot;</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>-q:a 2</code> 是可变码率质量参数（约 190kbps VBR），个人博客够用又省空间</li>
+<li>顺手用 <code>-metadata</code> 写入 title&#x2F;artist，Win 资源管理器直接看得到</li>
+<li>机器上可能有好几份 ffmpeg（比如 B 站、剪映自带的那种精简版），<strong>用前先 <code>ffmpeg -encoders | findstr lame</code> 确认有没有 libmp3lame</strong>，否则转码直接报错</li>
+</ul>
+<blockquote>
+<p>校验编码器：<code>ffmpeg -hide_banner -encoders | findstr /i lame</code></p>
+</blockquote>
+<h2 id="2-歌单数据-music-json"><a href="#2-歌单数据-music-json" class="headerlink" title="2. 歌单数据 music.json"></a>2. 歌单数据 music.json</h2><p>底层播放器和歌单页共用同一份 JSON。结构很简单：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;songs&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="punctuation">&#123;</span> <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;time machine (feat. aren park)&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;artist&quot;</span><span class="punctuation">:</span> <span class="string">&quot;mj apanay &amp; aren park&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;url&quot;</span><span class="punctuation">:</span> <span class="string">&quot;/music/audio/time-machine-01.mp3&quot;</span> <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="punctuation">&#123;</span> <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;晴天&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;artist&quot;</span><span class="punctuation">:</span> <span class="string">&quot;周杰伦&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;url&quot;</span><span class="punctuation">:</span> <span class="string">&quot;/music/audio/zhou-qingtian-01.mp3&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;cover&quot;</span><span class="punctuation">:</span> <span class="string">&quot;/img/music/zhou-qingtian-01.jpg&quot;</span> <span class="punctuation">&#125;</span></span><br><span class="line">  <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>url</code> 是相对根路径的静态文件直链</li>
+<li><code>cover</code> 封面<strong>可省</strong>（没有则不显示，播放器是纯文字风格，不影响体验）</li>
+<li>顺序即播放顺序，前一首放最上面</li>
+</ul>
+<p>手写容易出错，我写了个脚本自动生成：<code>tools/build-playlist.js</code></p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> <span class="variable constant_">TRACKS</span> = &#123;</span><br><span class="line">  <span class="string">&#x27;time-machine-01&#x27;</span>: &#123; <span class="attr">name</span>: <span class="string">&#x27;time machine (feat. aren park)&#x27;</span>, <span class="attr">artist</span>: <span class="string">&#x27;mj apanay &amp; aren park&#x27;</span> &#125;,</span><br><span class="line">  <span class="string">&#x27;zhou-qingtian-01&#x27;</span>: &#123; <span class="attr">name</span>: <span class="string">&#x27;晴天&#x27;</span>, <span class="attr">artist</span>: <span class="string">&#x27;周杰伦&#x27;</span> &#125;,</span><br><span class="line">  <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> songs = <span class="title class_">Object</span>.<span class="title function_">entries</span>(<span class="variable constant_">TRACKS</span>)</span><br><span class="line">  .<span class="title function_">map</span>(<span class="function">(<span class="params">[key, meta]</span>) =&gt;</span> &#123;</span><br><span class="line">    <span class="keyword">const</span> mp3 = path.<span class="title function_">join</span>(<span class="variable constant_">AUDIO</span>, key + <span class="string">&#x27;.mp3&#x27;</span>)</span><br><span class="line">    <span class="keyword">if</span> (!fs.<span class="title function_">existsSync</span>(mp3) || fs.<span class="title function_">statSync</span>(mp3).<span class="property">size</span> &lt; <span class="number">100000</span>) <span class="keyword">return</span> <span class="literal">null</span>  <span class="comment">// 自动跳过缺失/损坏</span></span><br><span class="line">    <span class="keyword">return</span> &#123;</span><br><span class="line">      <span class="attr">name</span>: meta.<span class="property">name</span>, <span class="attr">artist</span>: meta.<span class="property">artist</span>,</span><br><span class="line">      <span class="attr">url</span>: <span class="string">&#x27;/music/audio/&#x27;</span> + key + <span class="string">&#x27;.mp3&#x27;</span>,</span><br><span class="line">      <span class="attr">cover</span>: fs.<span class="title function_">existsSync</span>(jpg) ? <span class="string">&#x27;/img/music/&#x27;</span> + key + <span class="string">&#x27;.jpg&#x27;</span> : <span class="literal">undefined</span></span><br><span class="line">    &#125;</span><br><span class="line">  &#125;)</span><br><span class="line">  .<span class="title function_">filter</span>(<span class="title class_">Boolean</span>)</span><br></pre></td></tr></table></figure>
+
+<p>用法：<code>node tools/build-playlist.js</code>。加歌流程 &#x3D; 放 mp3 进 <code>audio/</code> → 在 <code>TRACKS</code> 加一行 → 跑一下脚本。<strong>别手改 music.json</strong>，它有 <code>_note</code> 提示就是提醒你它会随时被脚本覆盖。</p>
+<h2 id="3-底部悬浮播放器-global-player-js"><a href="#3-底部悬浮播放器-global-player-js" class="headerlink" title="3. 底部悬浮播放器 global-player.js"></a>3. 底部悬浮播放器 global-player.js</h2><p>放在主题目录 <code>themes/butterfly/source/js/global-player.js</code>，功能清单：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>实现</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>进站静音自动播放</td>
+<td>首次访问自动播第一首，浏览器拦截则回退「静音播放」，点音量键解除静音</td>
+</tr>
+<tr>
+<td>刷新&#x2F;翻页续播</td>
+<td><code>sessionStorage</code> 记录 <code>&#123;曲目, 进度, 静音, 暂停&#125;</code>，重载后 <code>restoreSeek()</code> 恢复进度</td>
+</tr>
+<tr>
+<td>音量记忆</td>
+<td><code>localStorage</code> 存音量百分比，下次访问恢复</td>
+</tr>
+<tr>
+<td>自动切歌</td>
+<td><code>ended</code> 事件循环下一首</td>
+</tr>
+<tr>
+<td>翻页不中断</td>
+<td>播放器 DOM 挂在 <code>body</code>，PJAX 换内容不影响它，曲目在页间无缝延续</td>
+</tr>
+</tbody></table>
+<p>核心伪代码：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 会话恢复：切歌/暂停/进度 全记录 */</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">saveSess</span> (<span class="params"></span>) &#123;</span><br><span class="line">  <span class="variable language_">sessionStorage</span>.<span class="title function_">setItem</span>(<span class="string">&#x27;mq_sess&#x27;</span>, <span class="title class_">JSON</span>.<span class="title function_">stringify</span>(&#123;</span><br><span class="line">    <span class="attr">i</span>: state.<span class="property">index</span>,</span><br><span class="line">    <span class="attr">t</span>: audio.<span class="property">currentTime</span>,</span><br><span class="line">    <span class="attr">m</span>: audio.<span class="property">muted</span>,</span><br><span class="line">    <span class="attr">p</span>: audio.<span class="property">paused</span></span><br><span class="line">  &#125;))</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 重载后恢复进度（等元数据可读再 seek，否则抛错） */</span></span><br><span class="line"><span class="keyword">function</span> <span class="title function_">restoreSeek</span> (<span class="params">t</span>) &#123;</span><br><span class="line">  audio.<span class="title function_">addEventListener</span>(<span class="string">&#x27;loadedmetadata&#x27;</span>, <span class="keyword">function</span> <span class="title function_">done</span> (<span class="params"></span>) &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123; audio.<span class="property">currentTime</span> = t &#125; <span class="keyword">catch</span> (e) &#123;&#125;</span><br><span class="line">    audio.<span class="title function_">removeEventListener</span>(<span class="string">&#x27;loadedmetadata&#x27;</span>, done)</span><br><span class="line">  &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对外暴露 <code>window.GlobalPlayer = &#123; play, toggle, next, prev, getIndex, getList &#125;</code>，歌单页就靠它联动。</p>
+<h2 id="4-歌单页联动"><a href="#4-歌单页联动" class="headerlink" title="4. 歌单页联动"></a>4. 歌单页联动</h2><p><code>/music/</code> 页面里的脚本拉 <code>music.json</code> 渲染列表，然后：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">el.<span class="title function_">addEventListener</span>(<span class="string">&#x27;click&#x27;</span>, <span class="keyword">function</span> (<span class="params">ev</span>) &#123;</span><br><span class="line">  <span class="keyword">var</span> item = ev.<span class="property">target</span>.<span class="title function_">closest</span>(<span class="string">&#x27;.song-item&#x27;</span>)</span><br><span class="line">  <span class="keyword">var</span> idx = <span class="built_in">parseInt</span>(item.<span class="title function_">getAttribute</span>(<span class="string">&#x27;data-index&#x27;</span>), <span class="number">10</span>)</span><br><span class="line">  <span class="keyword">if</span> (!<span class="built_in">isNaN</span>(idx)) <span class="variable language_">window</span>.<span class="property">GlobalPlayer</span>.<span class="title function_">play</span>(idx)   <span class="comment">// 点歌 → 全局播放器切歌</span></span><br><span class="line">&#125;)</span><br><span class="line"><span class="variable language_">document</span>.<span class="title function_">addEventListener</span>(<span class="string">&#x27;globalTrackChange&#x27;</span>, <span class="keyword">function</span> (<span class="params">e</span>) &#123;</span><br><span class="line">  <span class="title function_">markActive</span>(e.<span class="property">detail</span>.<span class="property">index</span>)                        <span class="comment">// 播放器切歌 → 列表高亮同步</span></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<p>播放器与歌单通过<strong>自定义事件</strong> <code>globalTrackChange</code> 双向同步，谁改歌单另一方都跟着变。</p>
+<h2 id="5-样式"><a href="#5-样式" class="headerlink" title="5. 样式"></a>5. 样式</h2><p>播放器与歌单样式都写在 <code>themes/butterfly/source/css/custom.css</code>，核心就是 <strong>fixed 定位贴在底部</strong>：</p>
+<figure class="highlight css"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="selector-class">.gp-player</span> &#123;</span><br><span class="line">  <span class="attribute">position</span>: fixed;</span><br><span class="line">  <span class="attribute">right</span>: <span class="number">0</span>; <span class="attribute">left</span>: <span class="number">0</span>; <span class="attribute">bottom</span>: <span class="number">0</span>;</span><br><span class="line">  <span class="attribute">z-index</span>: <span class="number">9999</span>;</span><br><span class="line">  <span class="attribute">display</span>: flex; <span class="attribute">justify-content</span>: space-between; <span class="attribute">align-items</span>: center;</span><br><span class="line">  <span class="attribute">height</span>: <span class="number">44px</span>;</span><br><span class="line">  <span class="attribute">padding</span>: <span class="number">0</span> <span class="number">16px</span>;</span><br><span class="line">  <span class="attribute">background</span>: <span class="built_in">rgba</span>(<span class="number">20</span>, <span class="number">20</span>, <span class="number">30</span>, <span class="number">0.92</span>);</span><br><span class="line">  <span class="attribute">backdrop-filter</span>: <span class="built_in">blur</span>(<span class="number">6px</span>);        <span class="comment">/* 半透明毛玻璃，飘在正文之上 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>记得给 <code>body</code> 加个 <code>padding-bottom: 44px</code>，否则播放器会盖住每页底部内容。</p>
+</blockquote>
+<h2 id="6-注入页面"><a href="#6-注入页面" class="headerlink" title="6. 注入页面"></a>6. 注入页面</h2><p>模块是外部 JS，不能手动塞进每个 HTML，用 Butterfly 的 <code>inject</code>（<code>_config.butterfly.yml</code>）：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">inject:</span></span><br><span class="line">  <span class="attr">head:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">&lt;link</span> <span class="string">rel=&quot;stylesheet&quot;</span> <span class="string">href=&quot;/css/custom.css&quot;&gt;</span></span><br><span class="line">  <span class="attr">bottom:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">&lt;script</span> <span class="string">defer</span> <span class="string">src=&quot;/js/global-player.js&quot;&gt;&lt;/script&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>defer</code> 保证拿到 DOM，PJAX 页面也只会加载一次，播放器状态跨页保留。</p>
+<h1 id="Movie-模块"><a href="#Movie-模块" class="headerlink" title="Movie 模块"></a>Movie 模块</h1><h2 id="1-数据源-art-yml"><a href="#1-数据源-art-yml" class="headerlink" title="1. 数据源 art.yml"></a>1. 数据源 art.yml</h2><p><code>source/_data/art.yml</code> 是<strong>全站数据文件</strong>（<code>hexo.locals.get(&#39;data&#39;)</code> 可直接读），分组合画：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="bullet">-</span> <span class="attr">group:</span> <span class="string">克劳德·莫奈</span> <span class="string">Claude</span> <span class="string">Monet</span></span><br><span class="line">  <span class="attr">sub:</span> <span class="string">印象派</span> <span class="string">·</span> <span class="string">光与色</span></span><br><span class="line">  <span class="attr">works:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">title:</span> <span class="string">睡莲</span></span><br><span class="line">      <span class="attr">meta:</span> <span class="string">Water</span> <span class="string">Lilies</span> <span class="string">·</span> <span class="number">1914</span><span class="string">–1926</span></span><br><span class="line">      <span class="attr">img:</span> <span class="string">/img/art/monet-waterlilies.jpg</span></span><br><span class="line">      <span class="attr">desc:</span> <span class="string">吉维尼水园是莫奈晚年的一方天地，睡莲与倒影在他的目光里反复溶解重组，光成了真正的颜料。</span></span><br><span class="line">    <span class="comment"># ... 同组继续加</span></span><br></pre></td></tr></table></figure>
+
+<p>字段含义：<code>group</code> 分组标题、<code>sub</code> 副标题、<code>title</code> 画名、<code>meta</code> 英文名&#x2F;年代、<code>img</code> 原图、<code>desc</code> 弹窗配文（可省）。</p>
+<h2 id="2-渲染标签-art-gallery"><a href="#2-渲染标签-art-gallery" class="headerlink" title="2. 渲染标签 art_gallery"></a>2. 渲染标签 art_gallery</h2><p>写个 Hexo 自定义标签插件 <code>scripts/art-gallery.js</code>，页面里一行 <code>&#123;% art_gallery %&#125;</code> 即渲染整个画廊：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">hexo.<span class="property">extend</span>.<span class="property">tag</span>.<span class="title function_">register</span>(<span class="string">&#x27;art_gallery&#x27;</span>, <span class="keyword">function</span> (<span class="params">args</span>) &#123;</span><br><span class="line">  <span class="keyword">const</span> groups = hexo.<span class="property">locals</span>.<span class="title function_">get</span>(<span class="string">&#x27;data&#x27;</span>).<span class="property">art</span> || []</span><br><span class="line">  <span class="comment">// 遍历生成 &lt;section class=&quot;art-section&quot;&gt; → &lt;figure class=&quot;art-card&quot;&gt;</span></span><br><span class="line">  <span class="comment">// 卡片 &lt;img&gt; 上带 data-title / data-meta / data-desc，喂给大图查看器</span></span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<p>要输出的卡片结构（关键属性是给查看器用的）：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">figure</span> <span class="attr">class</span>=<span class="string">&quot;art-card&quot;</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">div</span> <span class="attr">class</span>=<span class="string">&quot;art-card-thumb&quot;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">span</span> <span class="attr">class</span>=<span class="string">&quot;art-index&quot;</span>&gt;</span>01<span class="tag">&lt;/<span class="name">span</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">img</span> <span class="attr">loading</span>=<span class="string">&quot;lazy&quot;</span></span></span><br><span class="line"><span class="tag">         <span class="attr">src</span>=<span class="string">&quot;/img/art/monet-waterlilies.jpg&quot;</span></span></span><br><span class="line"><span class="tag">         <span class="attr">alt</span>=<span class="string">&quot;睡莲&quot;</span></span></span><br><span class="line"><span class="tag">         <span class="attr">data-title</span>=<span class="string">&quot;睡莲&quot;</span></span></span><br><span class="line"><span class="tag">         <span class="attr">data-meta</span>=<span class="string">&quot;Water Lilies · 1914–1926&quot;</span></span></span><br><span class="line"><span class="tag">         <span class="attr">data-desc</span>=<span class="string">&quot;吉维尼水园是莫奈晚年的一方天地……&quot;</span>/&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">div</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;<span class="name">figcaption</span> <span class="attr">class</span>=<span class="string">&quot;art-card-info&quot;</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">span</span> <span class="attr">class</span>=<span class="string">&quot;art-card-title&quot;</span>&gt;</span>睡莲<span class="tag">&lt;/<span class="name">span</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">span</span> <span class="attr">class</span>=<span class="string">&quot;art-card-meta&quot;</span>&gt;</span>Water Lilies · 1914–1926<span class="tag">&lt;/<span class="name">span</span>&gt;</span></span><br><span class="line">  <span class="tag">&lt;/<span class="name">figcaption</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">figure</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><code>scripts/*.js</code> 是<strong>构建时</strong>执行的（生成 HTML 时跑一次），改完必须重新 <code>hexo generate</code> 才生效，改它不像改页面那样刷新就有。</p>
+</blockquote>
+<h2 id="3-大图查看器-art-viewer-js"><a href="#3-大图查看器-art-viewer-js" class="headerlink" title="3. 大图查看器 art-viewer.js"></a>3. 大图查看器 art-viewer.js</h2><p>卡片只是缩略图，点开要看高清图。<code>themes/butterfly/source/js/art-viewer.js</code> 用<strong>事件委托</strong>监听点击：</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable language_">document</span>.<span class="title function_">addEventListener</span>(<span class="string">&#x27;click&#x27;</span>, <span class="keyword">function</span> (<span class="params">e</span>) &#123;</span><br><span class="line">  <span class="keyword">var</span> t = e.<span class="property">target</span></span><br><span class="line">  <span class="keyword">if</span> (t &amp;&amp; t.<span class="property">tagName</span> === <span class="string">&#x27;IMG&#x27;</span> &amp;&amp; !t.<span class="title function_">closest</span>(<span class="string">&#x27;.art-viewer&#x27;</span>) &amp;&amp; t.<span class="title function_">closest</span>(<span class="string">&#x27;.art-card-thumb&#x27;</span>)) &#123;</span><br><span class="line">    <span class="title function_">open</span>(t)</span><br><span class="line">  &#125;</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<p><code>open()</code> 动态插入一个全屏遮罩：</p>
+<ul>
+<li>中央大图 + 底部半透明信息条（<code>title / meta / desc</code>，没写 desc 的自动隐藏）</li>
+<li><code>ESC</code> &#x2F; 点击遮罩 &#x2F; × 按钮三种方式关闭</li>
+<li>打开时给 <code>body</code> 加 <code>artview-lock</code> 锁滚动</li>
+</ul>
+<p>信息条样式（<code>custom.css</code>）：</p>
+<figure class="highlight css"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="selector-class">.art-viewer-caption</span> &#123;</span><br><span class="line">  <span class="attribute">position</span>: absolute; <span class="attribute">left</span>: <span class="number">0</span>; <span class="attribute">right</span>: <span class="number">0</span>; <span class="attribute">bottom</span>: <span class="number">0</span>;</span><br><span class="line">  <span class="attribute">padding</span>: <span class="number">12px</span> <span class="number">20px</span>;</span><br><span class="line">  <span class="attribute">background</span>: <span class="built_in">linear-gradient</span>(transparent, <span class="built_in">rgba</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0.75</span>));  <span class="comment">/* 下浅上透 */</span></span><br><span class="line">  <span class="attribute">color</span>: <span class="number">#fff</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="4-加画流程（不碰代码）"><a href="#4-加画流程（不碰代码）" class="headerlink" title="4. 加画流程（不碰代码）"></a>4. 加画流程（不碰代码）</h2><ol>
+<li>原图丢进 <code>source/img/art/</code></li>
+<li><code>art.yml</code> 对应分组里加一行 <code>img</code> 与 <code>title/meta/desc</code></li>
+<li><code>hexo generate</code> 重新构建</li>
+</ol>
+<p>数据全走 YAML + 标签插件，永远不需要改 JS&#x2F;CSS。</p>
+<h1 id="PJAX-踩坑提醒"><a href="#PJAX-踩坑提醒" class="headerlink" title="PJAX 踩坑提醒"></a>PJAX 踩坑提醒</h1><p>本站开了 PJAX，自定义 JS 有两个容易翻车的点：</p>
+<ol>
+<li><strong>不想每页重跑的逻辑</strong>（播放器）：挂在 <code>body</code> 上 + 只初始化一次 → 翻页时完全不受影响。</li>
+<li><strong>每页都要清理的东西</strong>（大图查看器）：页面切换瞬间如果不收起，旧遮罩会穿到下一页。所以查看器要监听 PJAX 导航开始事件主动关闭：</li>
+</ol>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable language_">document</span>.<span class="title function_">addEventListener</span>(<span class="string">&#x27;pjax:start&#x27;</span>, <span class="keyword">function</span> (<span class="params"></span>) &#123;</span><br><span class="line">  <span class="keyword">var</span> v = <span class="variable language_">document</span>.<span class="title function_">querySelector</span>(<span class="string">&#x27;.art-viewer&#x27;</span>)</span><br><span class="line">  <span class="keyword">if</span> (!v) <span class="keyword">return</span></span><br><span class="line">  <span class="variable language_">document</span>.<span class="title function_">removeEventListener</span>(<span class="string">&#x27;keydown&#x27;</span>, v.<span class="property">_esc</span>)</span><br><span class="line">  v.<span class="title function_">remove</span>()</span><br><span class="line">  <span class="variable language_">document</span>.<span class="property">body</span>.<span class="property">classList</span>.<span class="title function_">remove</span>(<span class="string">&#x27;artview-lock&#x27;</span>)</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>如果翻页爆红 <code>Pjax switch fail: DOM doesn&#39;t look the same ... og:description - new 1, old 0</code>，说明主题的 PJAX 校验把文章独有元素（OG 标签）也算进对比了，去 <code>themes/butterfly/layout/includes/third-party/pjax.pug</code> 删掉那批 selector 即可（见本站上一篇修复）。</li>
+</ol>
+<h1 id="构建与部署"><a href="#构建与部署" class="headerlink" title="构建与部署"></a>构建与部署</h1><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 生成歌单 JSON</span></span><br><span class="line">node tools/build-playlist.js</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 构建（scripts/ 下的标签插件必须重新 generate）</span></span><br><span class="line">hexo clean &amp;&amp; hexo generate</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 本地预览</span></span><br><span class="line">hexo server          <span class="comment"># → http://localhost:4000</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 上线</span></span><br><span class="line">hexo deploy          <span class="comment"># 推送到 GitHub Pages</span></span><br></pre></td></tr></table></figure>
+
+<h1 id="常见问题"><a href="#常见问题" class="headerlink" title="常见问题"></a>常见问题</h1><table>
+<thead>
+<tr>
+<th>问题</th>
+<th>原因 &amp; 解决</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>歌单页点歌没反应</td>
+<td><code>window.GlobalPlayer</code> 未就绪。歌单脚本要等 <code>globalMusicReady</code> 事件再渲染，或直接加 <code>defer</code> 保证顺序</td>
+</tr>
+<tr>
+<td>刷新后从开头播</td>
+<td><code>sessionStorage</code> 被清或没存到。检查 <code>mq_sess</code> 是否写入，seek 要等 <code>loadedmetadata</code></td>
+</tr>
+<tr>
+<td>自动播放被浏览器拦</td>
+<td>正常。播放器已静音兜底自动播放，用户点音量键解除静音即可继续</td>
+</tr>
+<tr>
+<td>画廊不渲染</td>
+<td><code>&#123;% art_gallery %&#125;</code> 插件在 <code>scripts/</code> 里，忘了 <code>hexo generate</code> 或写错 data 文件名（<code>_data/art.yml</code>）</td>
+</tr>
+<tr>
+<td>弹窗不留 desc</td>
+<td><code>art.yml</code> 该条没写 <code>desc</code>，查看器会<strong>自动隐藏</strong>信息条，不算 bug</td>
+</tr>
+<tr>
+<td>图片 <code>art-broken</code> 占位</td>
+<td><code>img</code> 路径写错，检查 <code>source/img/art/</code> 下文件名是否一致</td>
+</tr>
+</tbody></table>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><ul>
+<li><strong>Music</strong> &#x3D; 本地 mp3 + <code>music.json</code> + <code>global-player.js</code>（原生 audio，底部常驻，会话恢复）</li>
+<li><strong>Movie</strong> &#x3D; <code>art.yml</code> + <code>&#123;% art_gallery %&#125;</code> 标签 + <code>art-viewer.js</code>（点开看大图与配文）</li>
+<li>两端都遵循<strong>数据驱动</strong>：加歌加画只需改 JSON&#x2F;YAML 与丢文件，不碰代码</li>
+<li>自定义 JS 与 PJAX 的配合原则：挂 <code>body</code> 的常在、进出页的有 <code>pjax:start</code> 清理</li>
+</ul>
+<p>完整源码托管在 <a href="https://y3148y.github.io/">Y3148y.github.io</a> 仓库，可直接对照。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://Y3148y.github.io">听雨</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://y3148y.github.io/2026/09/20/butterfly-beautify-04-music-gallery/">https://y3148y.github.io/2026/09/20/butterfly-beautify-04-music-gallery/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://Y3148y.github.io" target="_blank">听雨</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Hexo/">Hexo</a><a class="post-meta__tags" href="/tags/Butterfly/">Butterfly</a><a class="post-meta__tags" href="/tags/%E5%8D%9A%E5%AE%A2%E7%BE%8E%E5%8C%96/">博客美化</a><a class="post-meta__tags" href="/tags/%E9%9F%B3%E4%B9%90/">音乐</a><a class="post-meta__tags" href="/tags/%E7%94%BB%E5%BB%8A/">画廊</a></div><div class="post-share"><div class="social-share" data-image="/img/art/monet-waterlilies-sunset.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/09/30/rabbitmq-interview-01-core/" title="RabbitMQ 面试系列 01：核心原理与架构"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">RabbitMQ 面试系列 01：核心原理与架构</div></div><div class="info-2"><div class="info-item-1"> 本文是 RabbitMQ 面试系列的第一篇，覆盖消息队列全景、核心对象模型、交换机四种类型与队列类型选型。所有 API 名称、参数与版本特性均已对照 RabbitMQ 4.3.x 官方文档核对。 技术基线：RabbitMQ 4.3.x &#x2F; AMQP 0-9-1 &#x2F; Java 17 &#x2F; Spring Boot 3.x + Spring AMQP 4.x。   一、消息队列全景：为什么需要 MQ1.1 MQ 到底解决了什么在展开 RabbitMQ 之前，先把「为什么要引入消息队列」这件事讲透。面试里绝大多数人只会背「解耦、异步、削峰」三个词，却讲不清代价。真正拉开分差的回答是：先讲收益，再讲代价，最后讲边界。 1.1.1 解耦假设系统里有订单、库存、积分、风控、通知五个模块，下单成功后需要通知它们。 紧耦合写法： 123456789101112131415@Servicepublic class OrderService &#123;    private InventoryClient inventoryClient;    private Poin...</div></div></div></a><a class="pagination-related" href="/2026/09/19/oil-painting-gallery-dev/" title="用 Python 和 Canvas 给博客搭一个油画画廊"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">用 Python 和 Canvas 给博客搭一个油画画廊</div></div><div class="info-2"><div class="info-item-1">给 Hexo 博客做了个「AI 油画 + 裸眼 3D」画廊，前后端各一个模块，总共不到 500 行代码。这篇文章记录下实现思路。   整体架构123456789101112source/img/art/          ← 10 张莫奈 + 梵高原图       │       ▼tools/generate-oil.py    ← Python PIL 油画滤镜       │       ▼public/img/art/oil/      ← 10 张油画版（构建时生成）       │       ▼painting-engine.js       ← 前端：3D 视差 + Canvas 混合 + 滚动入场painting.css             ← 样式：深度层、油画 Canvas、降级art-gallery.js           ← Hexo tag：&#123;% art_gallery %&#125; 渲染卡片  数据驱动，加画只需要在 source/_data/art.yml 里加一行。  模块一：Python 油画滤镜123456789101112...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/10/18/butterfly-beautify-05-oil-paint-transition/" title="基于Butterfly的网站美化教程05：油画卷轴跳转过渡"><div class="cover" style="background: /img/art/vangogh-starry-night.jpg"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-18</div><div class="info-item-2">基于Butterfly的网站美化教程05：油画卷轴跳转过渡</div></div><div class="info-2"><div class="info-item-1">前言上一篇做完 Music 播放器和 Movie 画廊之后，我看着自己的画一直有个手痒的念头：既然访客点进来看的是这些画，为什么不用画本身来做页面切换的遮罩？ 于是做了这个：点击任意站内链接，一幅油画从屏幕顶部卷轴展开铺满全屏，画面中央淡入画名、作者与年代；PJAX 在完全遮住的那一瞬静默换页；随后卷轴向上收起，露出新页面。 整套东西没有引任何第三方库——没有 GSAP、没有 anime.js、连 View Transitions API 都没用（PJAX 自己管 DOM 交换，和原生 API 对不上）。纯 CSS 动画 + 一段调度 JS，加起来 590 行。 效果就是你现在点的每一个链接。5 幅画洗牌轮转，不会连着撞同一幅。   时序拆解先看清楚它到底在干什么，后面所有设计选择都是为了这张图： 123456789点击 │ ├─ t=0      顶轴落下 ────────────┐ │  t=80ms   布从顶边向下展开      │  遮住 420ms │  t=200ms  画名淡入              │  ← PJAX 在这里静默换页 │  t=480ms  ...</div></div></div></a><a class="pagination-related" href="/2026/09/19/butterfly-beautify-03-welcome-card/" title="基于Butterfly的网站美化教程03：实现访客定位欢迎卡片"><div class="cover" style="background: /img/feild.webp"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-19</div><div class="info-item-2">基于Butterfly的网站美化教程03：实现访客定位欢迎卡片</div></div><div class="info-2"><div class="info-item-1">前言打开别人的 Hexo Butterfly 博客，经常能在右侧栏看到一张欢迎卡片：「🎉 欢迎来自 江西省 赣州市 的小伙伴，晚上好～落霞与孤鹜齐飞……」每次刷新还能换一句不同的句子。 本篇就把这个功能从零实现，把踩过的坑也一并记录，免得你再走弯路。 效果预览 首次打开：立刻显示时间问候（不空白），定位完成后自动替换为省份 + 专属文案 每次刷新页面：同一省份的 3 句文案随机抽 1 句，不会撞款 定位失败：显示「欢迎来自 远方 的小伙伴」兜底  实现原理整个功能的核心思路只有三步，没有任何后端服务：  渲染时间问候（纯本地，不请求任何接口，先保证卡片不空白） 拉 IP 定位（浏览器并行请求 3 个免费接口，第一个成功就用谁） 查表输出文案（用定位结果去省份文案表里抽一句话，拼接到卡片）  全程纯前端，Hexo 生成静态文件时不会处理这段逻辑，访客打开页面后 JS 才运行。 实现步骤第一步：修改卡片模板（Pug）Butterfly 的右侧栏「公告」卡片由 card_announcement.pug 渲染，我们把里面的文案容器换成一个带 id 的空 &lt;div&gt;，留给 ...</div></div></div></a><a class="pagination-related" href="/2026/09/02/butterfly-toc-fix/" title="基于Butterfly的网站美化教程02：修复文章右侧目录栏消失与不跟随的问题"><div class="cover" style="background: /img/feild.webp"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-09-02</div><div class="info-item-2">基于Butterfly的网站美化教程02：修复文章右侧目录栏消失与不跟随的问题</div></div><div class="info-2"><div class="info-item-1">前言用 Hexo + Butterfly 主题写文章时发现两个问题：  目录栏消失：文章很长时，右侧目录栏随着页面一起向上滚动，很快就离开视口消失，无法固定在文章右侧。 目录不跟随：即使目录栏固定住了，往下读文章时目录列表也不会自动滚动定位到当前章节。  查资料、试了很多方案（改 CSS、写 JS、改模板……）都不行，最后终于找到病根。本文把这个正确的修复方法记录成一篇教程，希望能帮到遇到同样问题的人。  本文基于 Butterfly 主题（本项目版本 5.5.5），修复只需要改一行 CSS。  症状复现 文章 30000 多像素长 右侧栏有：作者卡、公告卡、目录卡、最新文章卡 滚动到中途，右侧栏整个滚出屏幕；即便固定住，目录也不跟着文章走  网上常见方案为什么不管用先说几个弯路，帮你避免浪费时间：    方案 结果    写 CSS 调 top 值 治标不治本   写 JS 监听滚动动态 fixed/sticky 布局错乱   把 TOC 移出 sticky_layout 改模板 破坏原有布局   给 .layout 加 align-items: flex-start 禁止 a...</div></div></div></a><a class="pagination-related" href="/2026/07/13/butterfly-beautify-01/" title="基于Butterfly的网站美化教程01"><div class="cover" style="background: /img/feild.webp"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-13</div><div class="info-item-2">基于Butterfly的网站美化教程01</div></div><div class="info-2"><div class="info-item-1">前言在上一篇文章 基于 GithubPage 和 hexo 的简单个人网站搭建教程 我们已经初步搭建好了简单的博客网站，接下来我们开始试着丰富和美化这个网站。本文将介绍使用Gitcus增加网站评论区，增加菜单栏，修改图片布局。 评论技术选型主要有Waline（轻量级，评论无需登录，免费额度）,Gitalk（基于 GitHub Issue + Preact ）,Twikoo（腾讯云，有免费额度）,Giscus（GitHub 账号评论，评论存在仓库 Discussion）。本站采用了Giscus，因为前两种都没有成功(╥﹏╥)，Gitalk 存在网络卡顿问题，Vercel 站点访问超时。 Waline(Valine官方升级版)是 Valine 作者迭代的新版本，兼容 Valine 的使用习惯，支持匿名留言（昵称 + 邮箱即可），不用 GitHub 账号；国内 CDN 加速，访问稳定性远超 Gitalk免费部署在 Vercel，自带评论后台、邮件提醒、反垃圾评论，侧边栏最新评论卡片可适配。 登录 Vercel并创建项目打开 https://vercel.com/ ，使用你的 GitHu...</div></div></div></a><a class="pagination-related" href="/2026/07/10/hexo-github-pages-guide/" title="基于 GithubPage 和 hexo 的简单个人网站搭建教程"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-07-10</div><div class="info-item-2">基于 GithubPage 和 hexo 的简单个人网站搭建教程</div></div><div class="info-2"><div class="info-item-1">前言个人博客效果展示：听雨 为什么要搭建个人博客平台？  无平台限制、永久属于自己：CSDN、掘金、公众号等平台，文章会被限流、删帖、收录受限，甚至账号封禁内容全无。个人博客是完全私有化的知识库，自己全权掌控。  零成本永久上线：无需购买服务器、无需域名费用、无需续费，GitHub Pages 终身免费托管，学生、新手零负担。  极简高颜值、可自由定制：告别平台统一模板，自定义壁纸、动效、看板娘、导航、页脚，打造专属个人IP主页。  助力学习与求职：记录编程、学习笔记、生活随笔，积累技术沉淀，求职时可作为个人作品集，大幅加分。   本文为零基础保姆级全套教程，无需代码基础、无需服务器，全程 Windows 通用。包含：环境安装→博客初始化→主题配置→全套炫酷美化→看板娘部署→页面搭建→博客写作规范→上线部署个人博客。 技术栈选型 选择 Hexo 静态博客框架，基于 Node.js 运行，全程配置化操作，无需手写代码，上手简单。  运行环境 Node.js + Git：Hexo 无法直接在电脑运行，没有环境就无法生成网站、无法安装插件、无法部署上线。支撑 Hexo 所有命令运行、插...</div></div></div></a><a class="pagination-related" href="/2026/10/18/blog-admin-03-ci-deploy/" title="博客后台开发 03：部署与 CI 的完整链路"><div class="cover" style="background: /img/art/vangogh-poppy-field.jpg"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-18</div><div class="info-item-2">博客后台开发 03：部署与 CI 的完整链路</div></div><div class="info-2"><div class="info-item-1"> 这条链路上发生什么前两篇讲的是后台本身。这一篇讲从「在浏览器里点保存」到「GitHub Pages 上的站点更新」之间发生的事。 这条链路不长，但它是整个项目里失败次数最多的部分。不是因为它复杂，而是因为它横跨了三个 Git 仓库、两套身份认证、以及一个我至今没有完全搞懂的 Bash 默认行为。 文章的顺序大致是失败发生的顺序：先讲清楚三个仓库怎么分工，再讲本地的三种发布模式，然后是 CI 上的四个坑，最后讲一个我自己引入又修掉的回归。 三个仓库的分工先把结构讲清楚，因为后面所有的权限问题都源于这里。    仓库 可见性 内容    Y3148y/my-blog 私密 文章、配置、后台代码、工作流定义   Y3148y/hexo-theme-butterfly 公开 主题定制（CI 从这里拉）   Y3148y/Y3148y.github.io 公开 只有产物：index.html、css/、js/   工作流为什么必须在有源码的仓库一个常见的误解是「Pages 仓库才是站点的工作目录，工作流当然放那里」。但那个仓库里没有源码——它的顶层条目全是构建产物，连 package.j...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="giscus-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">听雨</div><div class="author-info-description">welcome to my little nut</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">24</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">42</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Y3148y"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/Y3148y" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="welcome-content" id="welcome-info"><b><center>🎉 欢迎信息 🎉</center>&emsp;&emsp;欢迎来到我的小站，正在识别你的位置…</b></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%89%8D%E8%A8%80"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="toc-number">2.</span> <span class="toc-text">整体架构</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E8%8F%9C%E5%8D%95%E4%B8%8E%E9%A1%B5%E9%9D%A2%E9%AA%A8%E6%9E%B6"><span class="toc-number">3.</span> <span class="toc-text">第一步：菜单与页面骨架</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%8F%9C%E5%8D%95%E9%85%8D%E7%BD%AE"><span class="toc-number">3.1.</span> <span class="toc-text">菜单配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A1%B5%E9%9D%A2%E6%9C%AC%E8%BA%AB"><span class="toc-number">3.2.</span> <span class="toc-text">页面本身</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Music-%E6%A8%A1%E5%9D%97"><span class="toc-number">4.</span> <span class="toc-text">Music 模块</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E9%9F%B3%E9%A2%91%E6%96%87%E4%BB%B6%E6%94%BE%E5%93%AA%E9%87%8C"><span class="toc-number">4.1.</span> <span class="toc-text">1. 音频文件放哪里</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%A0%BC%E5%BC%8F%E4%B8%8E%E8%BD%AC%E7%A0%81%EF%BC%88%E8%B8%A9%E5%9D%91%EF%BC%89"><span class="toc-number">4.1.1.</span> <span class="toc-text">格式与转码（踩坑）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E6%AD%8C%E5%8D%95%E6%95%B0%E6%8D%AE-music-json"><span class="toc-number">4.2.</span> <span class="toc-text">2. 歌单数据 music.json</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%BA%95%E9%83%A8%E6%82%AC%E6%B5%AE%E6%92%AD%E6%94%BE%E5%99%A8-global-player-js"><span class="toc-number">4.3.</span> <span class="toc-text">3. 底部悬浮播放器 global-player.js</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E6%AD%8C%E5%8D%95%E9%A1%B5%E8%81%94%E5%8A%A8"><span class="toc-number">4.4.</span> <span class="toc-text">4. 歌单页联动</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E6%A0%B7%E5%BC%8F"><span class="toc-number">4.5.</span> <span class="toc-text">5. 样式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E6%B3%A8%E5%85%A5%E9%A1%B5%E9%9D%A2"><span class="toc-number">4.6.</span> <span class="toc-text">6. 注入页面</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Movie-%E6%A8%A1%E5%9D%97"><span class="toc-number">5.</span> <span class="toc-text">Movie 模块</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E6%95%B0%E6%8D%AE%E6%BA%90-art-yml"><span class="toc-number">5.1.</span> <span class="toc-text">1. 数据源 art.yml</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E6%B8%B2%E6%9F%93%E6%A0%87%E7%AD%BE-art-gallery"><span class="toc-number">5.2.</span> <span class="toc-text">2. 渲染标签 art_gallery</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E5%A4%A7%E5%9B%BE%E6%9F%A5%E7%9C%8B%E5%99%A8-art-viewer-js"><span class="toc-number">5.3.</span> <span class="toc-text">3. 大图查看器 art-viewer.js</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%8A%A0%E7%94%BB%E6%B5%81%E7%A8%8B%EF%BC%88%E4%B8%8D%E7%A2%B0%E4%BB%A3%E7%A0%81%EF%BC%89"><span class="toc-number">5.4.</span> <span class="toc-text">4. 加画流程（不碰代码）</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#PJAX-%E8%B8%A9%E5%9D%91%E6%8F%90%E9%86%92"><span class="toc-number">6.</span> <span class="toc-text">PJAX 踩坑提醒</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%9E%84%E5%BB%BA%E4%B8%8E%E9%83%A8%E7%BD%B2"><span class="toc-number">7.</span> <span class="toc-text">构建与部署</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98"><span class="toc-number">8.</span> <span class="toc-text">常见问题</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">9.</span> <span class="toc-text">总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"/></a><div class="content"><a class="title" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离">Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离</a><time datetime="2026-10-27T15:27:00.000Z" title="发表于 2026-10-27 15:27:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="KV Cache详解"/></a><div class="content"><a class="title" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解">KV Cache详解</a><time datetime="2026-10-27T10:54:00.000Z" title="发表于 2026-10-27 10:54:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"><img src="/img/art/monet-parasol-1875.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"/></a><div class="content"><a class="title" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底">Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底</a><time datetime="2026-10-26T20:41:00.000Z" title="发表于 2026-10-26 20:41:00">2026-10-26</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/vllm-intro/" title="初识vLLM"><img src="/img/art/vangogh-starry-night.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="初识vLLM"/></a><div class="content"><a class="title" href="/2026/10/20/vllm-intro/" title="初识vLLM">初识vLLM</a><time datetime="2026-10-20T17:52:00.000Z" title="发表于 2026-10-20 17:52:00">2026-10-20</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/20/blog-admin-04-theme/" title="博客后台开发 04：主题系统与护眼底色"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="博客后台开发 04：主题系统与护眼底色"/></a><div class="content"><a class="title" href="/2026/10/20/blog-admin-04-theme/" title="博客后台开发 04：主题系统与护眼底色">博客后台开发 04：主题系统与护眼底色</a><time datetime="2026-10-20T09:00:00.000Z" title="发表于 2026-10-20 09:00:00">2026-10-20</time></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(/img/sunrise.webp);"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 听雨</span></div><div class="footer_custom_text">你终于看到这里，希望你能天天开心</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.5"></script><script src="/js/main.js?v=5.5.5"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('/js/libs/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const getGiscusTheme = theme => theme === 'dark' ? 'dark' : 'light'
+
+  const createScriptElement = config => {
+    const ele = document.createElement('script')
+    Object.entries(config).forEach(([key, value]) => {
+      ele.setAttribute(key, value)
+    })
+    return ele
+  }
+
+  const loadGiscus = (el = document, key) => {
+    const mappingConfig = isShuoshuo
+      ? { 'data-mapping': 'specific', 'data-term': key }
+      : { 'data-mapping': (option && option['data-mapping']) || 'pathname' }
+
+    const giscusConfig = {
+      src: 'https://giscus.app/client.js',
+      'data-repo': 'Y3148y/my-blog-comments',
+      'data-repo-id': 'R_kgDOTV5zww',
+      'data-category-id': 'DIC_kwDOTV5zw84DBBql',
+      'data-theme': getGiscusTheme(document.documentElement.getAttribute('data-theme')),
+      'data-reactions-enabled': '1',
+      crossorigin: 'anonymous',
+      async: true,
+      ...option,
+      ...mappingConfig
+    }
+
+    const scriptElement = createScriptElement(giscusConfig)
+
+    el.querySelector('#giscus-wrap').appendChild(scriptElement)
+
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGiscus = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+  }
+
+  const changeGiscusTheme = theme => {
+    const iframe = document.querySelector('#giscus-wrap iframe')
+    if (iframe) {
+      const message = {
+        giscus: {
+          setConfig: {
+            theme: getGiscusTheme(theme)
+          }
+        }
+      }
+      iframe.contentWindow.postMessage(message, 'https://giscus.app')
+    }
+  }
+
+  btf.addGlobalFn('themeChange', changeGiscusTheme, 'giscus')
+
+  if (isShuoshuo) {
+    'Giscus' === 'Giscus'
+      ? window.shuoshuoComment = { loadComment: loadGiscus }
+      : window.loadOtherComment = loadGiscus
+    return
+  }
+
+  if ('Giscus' === 'Giscus' || !false) {
+    if (false) btf.loadComment(document.getElementById('giscus-wrap'), loadGiscus)
+    else loadGiscus()
+  } else {
+    window.loadOtherComment = loadGiscus
+  }
+})()</script></div><script defer src="/js/welcome.js"></script><script async src="/js/title.js"></script><script defer src="/js/global-player.js"></script><script defer src="/js/art-viewer.js"></script><script defer src="/js/painting-engine.js"></script><script defer src="/js/paint-scroll-transition.js?v=1"></script><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.5"></script></div></div><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"right","width":150,"height":300},"mobile":{"show":true},"react":{"opacity":1,"shadow":true},"log":false});</script></body></html>
