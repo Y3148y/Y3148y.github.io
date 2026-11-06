@@ -1,0 +1,303 @@
+/* ==========================================================================
+   transition.css - 油画卷轴跳转过渡
+   配 paint-scroll-transition.js。图片见 source/img/art/transition/
+   ========================================================================== */
+
+/* 遮罩挂在 body 上，不参与 PJAX 的区域替换 */
+.scroll-transition {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  /* 低于 Pace 进度条(99999)，网络慢时进度条仍露在画面上方 */
+  z-index: 9500;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ============================ 画布 ============================ */
+.st-sheet {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  /* 遮住整屏的底色：图没加载完也不会漏出下层页面 */
+  background: #1b140d;
+  clip-path: inset(0 0 100% 0);
+}
+
+.st-art {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: #1b140d;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  will-change: transform;
+}
+
+/* 四角压暗 + 下沿压边，让画布的边缘更实。
+   上沿那条压边拆到 ::before 里单独一层，收起时跟着顶轴一起淡出 ——
+   sheet 的上沿在 clip-path 收起过程中始终不动，这条暗带会一直钉在屏幕顶端，
+   不拆开的话顶轴淡出后就轮到它顶替成为那条横条。 */
+.st-vignette {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 100% at 50% 50%, transparent 46%, rgba(20, 14, 8, 0.42) 100%),
+    linear-gradient(to bottom, transparent 86%, rgba(20, 14, 8, 0.36) 100%);
+}
+
+.st-vignette::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 14%;
+  background: linear-gradient(to bottom, rgba(20, 14, 8, 0.32), transparent);
+}
+
+/* 极淡的颗粒，给数字图像一点油画笔触的呼吸感 */
+.st-grain {
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  bottom: -50%;
+  left: -50%;
+  pointer-events: none;
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ============================ 说明文字 ============================ */
+.st-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0 24px;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  color: #f4eee2;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72), 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.st-title,
+.st-artist,
+.st-meta {
+  display: block;
+}
+
+.st-title {
+  font-family: Georgia, 'Times New Roman', 'Songti SC', 'Noto Serif SC', serif;
+  font-size: clamp(1.7rem, 4.6vw, 2.9rem);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  line-height: 1.3;
+}
+
+.st-artist {
+  margin-top: 0.7em;
+  font-size: clamp(0.82rem, 2vw, 1rem);
+  font-weight: 400;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  opacity: 0.92;
+}
+
+.st-meta {
+  margin-top: 0.55em;
+  font-size: clamp(0.66rem, 1.6vw, 0.78rem);
+  font-weight: 300;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  opacity: 0.68;
+}
+
+/* ============================ 卷轴杆 ============================ */
+/* 卷轴杆是 .st-sheet 的兄弟节点，不受它的 clip-path 裁剪，所以可见性必须
+   自己做主：基态隐藏，动画负责显示。否则动画一收尾、class 摘干净，
+   两根杆就会回到 top:0 全透明为 0 地杵在页面顶端（还压着站点 header）。 */
+.st-roller {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 14px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  opacity: 0;
+  background: linear-gradient(to bottom,
+    #d9c9a6 0%, #c2ab84 18%, #8e7a5c 42%,
+    #6b5a42 58%, #a08a68 78%, #d3c0a0 100%);
+  box-shadow: 0 -1px 0 rgba(255, 248, 232, 0.22) inset, 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* 两端轴头 */
+.st-roller::before,
+.st-roller::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #e4d6b6, #8a7657 60%, #4e412f);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.st-roller::before { left: -11px; }
+.st-roller::after { right: -11px; }
+
+/* 底轴走在画布展开的前沿，往上投影才像布被拉出来 */
+.st-roller-bottom {
+  box-shadow: 0 -1px 0 rgba(255, 248, 232, 0.22) inset, 0 -16px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* 换页那一下压暗，眼睛察觉不到底下内容已经换了 */
+.st-veil {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: #0d0906;
+}
+
+/* ============================ 展开 ============================ */
+/* 顶轴先落下（140ms），画布再跟上（延迟 80ms），读起来才像卷轴垂下来 */
+.st-unrolling .st-roller-top {
+  animation: st-rod-in 140ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+.st-unrolling .st-sheet {
+  animation: st-unroll 340ms cubic-bezier(0.32, 0.72, 0, 1) 80ms both;
+}
+.st-unrolling .st-roller-bottom {
+  animation: st-rod-down 340ms cubic-bezier(0.32, 0.72, 0, 1) 80ms both;
+}
+.st-unrolling .st-art {
+  animation: st-zoom-in 1000ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+.st-unrolling .st-caption {
+  animation: st-cap-in 220ms ease-out 200ms both;
+}
+.st-veiling .st-veil {
+  animation: st-veil-in 140ms linear 260ms both;
+}
+
+@keyframes st-unroll {
+  from { clip-path: inset(0 0 100% 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes st-zoom-in {
+  from { transform: scale(1.07); }
+  to   { transform: scale(1); }
+}
+
+@keyframes st-rod-in {
+  from { transform: translateY(-140%); opacity: 1; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes st-rod-down {
+  from { transform: translateY(0); opacity: 1; }
+  to   { transform: translateY(var(--st-travel, calc(100vh - 14px))); opacity: 1; }
+}
+
+/* ============================ 收起 ============================ */
+.st-rolling .st-sheet {
+  animation: st-rollup 420ms cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+.st-rolling .st-roller-bottom {
+  animation: st-rod-up 420ms cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+/* 顶轴原地快速淡出，不再上滑。
+   和底轴用同一条慢起步曲线的话，起手近 200ms 两根轴都还杵在原位，
+   中间夹着一条画就成了画框 —— 恰好横在正在揭晓的新内容上面。 */
+.st-rolling .st-roller-top {
+  animation: st-rod-vanish 120ms linear both;
+}
+.st-rolling .st-vignette::before {
+  animation: st-rod-vanish 200ms linear both;
+}
+.st-rolling .st-art {
+  animation: st-zoom-out 900ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.st-rolling .st-caption {
+  animation: st-cap-out 160ms ease-in both;
+}
+.st-unveiling .st-veil {
+  animation: st-veil-out 280ms ease-out both;
+}
+
+@keyframes st-rollup {
+  from { clip-path: inset(0 0 0 0); }
+  to   { clip-path: inset(0 0 100% 0); }
+}
+
+@keyframes st-zoom-out {
+  from { transform: scale(1); }
+  to   { transform: scale(1.05); }
+}
+
+@keyframes st-rod-vanish {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* 跟着画布一起往上收，最后从顶端出画。
+   末帧必须同时淡出：cubic-bezier(0.5,0,0.75,0) 起步极慢，前 150ms 这根杆
+   几乎还停在屏幕底边，光靠位移根本来不及在收起前离开视野。 */
+@keyframes st-rod-up {
+  from { transform: translateY(var(--st-travel, calc(100vh - 14px))); opacity: 1; }
+  to   { transform: translateY(-140%); opacity: 0; }
+}
+
+@keyframes st-cap-in {
+  from { opacity: 0; transform: translateY(calc(-50% + 18px)); }
+  to   { opacity: 1; transform: translateY(-50%); }
+}
+
+@keyframes st-cap-out {
+  from { opacity: 1; transform: translateY(-50%); }
+  to   { opacity: 0; transform: translateY(calc(-50% - 12px)); }
+}
+
+@keyframes st-veil-in {
+  from { opacity: 0; }
+  to   { opacity: 0.26; }
+}
+
+@keyframes st-veil-out {
+  from { opacity: 0.26; }
+  to   { opacity: 0; }
+}
+
+/* ============================ 降级 ============================ */
+@media (prefers-reduced-motion: reduce) {
+  .scroll-transition { display: none; }
+}
+
+@media (max-width: 768px) {
+  /* 移动端合成器内存吃紧，颗粒层先砍掉 */
+  .st-grain { display: none; }
+  .st-art { will-change: auto; }
+}

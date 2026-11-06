@@ -1,0 +1,745 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态 | 听雨</title><meta name="author" content="听雨"><meta name="copyright" content="听雨"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="传统 KV Cache 将 Key&#x2F;Value 向量视为与输入 Token、位置编码强绑定的只读快照，前缀任意修改即触发全缓存失效与二次 Prefill，这是当前主流推理引擎（vLLM、SGLang 等）的工程默认约束。但该约束并非 Transformer 架构的固有本质。  前沿研究提出一种新视角：KV Cache 承载的核心信息并非原始 Token 表征，而是经过多层变换后沉淀的推理推论，可类">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态">
+<meta property="og:url" content="https://y3148y.github.io/2026/10/31/kv-cache-token/index.html">
+<meta property="og:site_name" content="听雨">
+<meta property="og:description" content="传统 KV Cache 将 Key&#x2F;Value 向量视为与输入 Token、位置编码强绑定的只读快照，前缀任意修改即触发全缓存失效与二次 Prefill，这是当前主流推理引擎（vLLM、SGLang 等）的工程默认约束。但该约束并非 Transformer 架构的固有本质。  前沿研究提出一种新视角：KV Cache 承载的核心信息并非原始 Token 表征，而是经过多层变换后沉淀的推理推论，可类">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://y3148y.github.io/img/art/vangogh-poppy-field.jpg">
+<meta property="article:published_time" content="2026-10-31T15:43:00.000Z">
+<meta property="article:modified_time" content="2026-10-31T15:43:00.000Z">
+<meta property="article:author" content="听雨">
+<meta property="article:tag" content="KV Cache">
+<meta property="article:tag" content="agent">
+<meta property="article:tag" content="llm">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://y3148y.github.io/img/art/vangogh-poppy-field.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态",
+  "url": "https://y3148y.github.io/2026/10/31/kv-cache-token/",
+  "image": "https://y3148y.github.io/img/art/vangogh-poppy-field.jpg",
+  "datePublished": "2026-10-31T15:43:00.000Z",
+  "dateModified": "2026-10-31T15:43:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "听雨",
+      "url": "https://Y3148y.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/cat.png"><link rel="canonical" href="https://y3148y.github.io/2026/10/31/kv-cache-token/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.5"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!true && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><link rel="stylesheet" href="/css/painting.css"><link rel="stylesheet" href="/css/transition.css?v=1"><style>
+  /* MathJax 3 (tex-svg) 版式：宽公式横向滚动，块级公式居中 */
+  mjx-container {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    padding-bottom: 4px;
+  }
+  mjx-container[display="true"] {
+    display: block !important;
+    margin: 1em 0;
+    text-align: center;
+  }
+  /* SVG 输出的字形默认 fill 是黑色，暗色主题下不可见，跟随正文颜色 */
+  mjx-container svg {
+    fill: currentColor;
+  }
+</style>
+<meta name="generator" content="Hexo 8.1.2"></head><body><script>window.paceOptions = {
+  restartOnPushState: false
+}
+
+btf.addGlobalFn('pjaxSend', () => {
+  Pace.restart()
+}, 'pace_restart')
+
+</script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/themes/blue/pace-theme-minimal.min.css"/><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><div class="bg-animation" id="web_bg" style="background-image: url(/img/sea.gif);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">26</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">45</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/art/vangogh-poppy-field.jpg);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">听雨</span></a><a class="nav-page-title" href="/"><span class="site-name">KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> Home</span></a></div><div class="menus_item"><span class="site-page group"><i class="fa-fw fas fa-list"></i><span> List</span><i class="fas fa-chevron-down"></i></span><ul class="menus_item_child"><li><a class="site-page child" href="/music/"><i class="fa-fw fas fa-music"></i><span> Music</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> Movie</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> categories</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> tags</span></a></div><div class="menus_item"><a class="site-page" href="/comments/"><i class="fa-fw fas fa-comments"></i><span> comments</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-user"></i><span> about</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-10-31T15:43:00.000Z" title="发表于 2026-10-31 15:43:00">2026-10-31</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-10-31T15:43:00.000Z" title="更新于 2026-10-31 15:43:00">2026-10-31</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%8A%80%E6%9C%AF%E5%AD%A6%E4%B9%A0/">技术学习</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><!-- toc -->
+<h2 id="1-回顾经典-KV-Cache-及其固有约束"><a href="#1-回顾经典-KV-Cache-及其固有约束" class="headerlink" title="1. 回顾经典 KV Cache 及其固有约束"></a>1. 回顾经典 KV Cache 及其固有约束</h2><p>在自回归 Transformer 解码中，KV Cache 是降低推理复杂度的核心优化手段。Prefill 阶段对上下文序列并行计算各 Token 的 Key、Value 向量并持久化存储；解码阶段仅输入最新 Token，计算其 Query 向量，与缓存中全部历史 K&#x2F;V 执行因果注意力，随后追加新 Token 的 K&#x2F;V 至缓存。该机制将逐步解码的重复 Prefill 开销消除，把生成阶段复杂度由 $O(N^2)$ 降至 $O(N)$。</p>
+<p>经典实现存在一条强假设：<strong>K&#x2F;V 向量与 Token 序列、RoPE 位置编码一一绑定，表征依赖前置序列的链式计算</strong>。若前缀任意位置的 Token 发生修改、插入或删除，该位置之后所有层、所有位置的 K&#x2F;V 表征均不再有效，缓存整体失效，必须执行一次完整 Prefill。</p>
+<p>RoPE 架构下，位置信息并非在 Embedding 阶段与词向量相加（D 先做 embedding + 位置编码，得到 D 的 hidden state），而是在 Q、K 线性投影之后通过旋转变换注入 Q 与 K，Value 本身不携带位置信息。因此 K 与位置的绑定不是附加的位置向量，而是被旋转进 K 数值里的固有属性；也正因这种旋转可分离，才能批量修改 K 的位置偏移，实现整块 KV 缓存的重定位与拼接（即 3.2 节的数学基础）。</p>
+<p>长期以来，业界默认该失效机制是 KV Cache 的必然属性，而该研究工作的核心贡献，是挑战这一固有认知：缓存失效是现有工程实现的选择，而非 Transformer 数学上不可突破的限制。</p>
+<h2 id="2-核心观测：原始-Token-K-V-对最终决策的边际贡献极低"><a href="#2-核心观测：原始-Token-K-V-对最终决策的边际贡献极低" class="headerlink" title="2. 核心观测：原始 Token K&#x2F;V 对最终决策的边际贡献极低"></a>2. 核心观测：原始 Token K&#x2F;V 对最终决策的边际贡献极低</h2><p>通过归因量化分析得到一个反直觉结论：上下文内某个事实片段对应的原始 Token K&#x2F;V，对模型最终 Logit 输出的贡献通常不足 1%。真正主导后续所有注意力交互、隐藏状态演化与预测结果的，是经过多层 Transformer Block 的注意力融合、非线性 MLP 变换之后，下游位置上沉淀下来的 K&#x2F;V 表征。这些深层 K&#x2F;V 已经完成了事实的消化、关联与推导，编码了由原始事实导出的隐式推论，而非原始文本字面信息。</p>
+<p>可以形式化区分两层信息：</p>
+<ol>
+<li>表层 K&#x2F;V：原始 Token 经过 Embedding 与投影层直接生成，对应输入字面；</li>
+<li>深层推理态 K&#x2F;V：多层堆叠后，融合上下文信息得到的推论表征，是决定后续生成的主体。</li>
+</ol>
+<p>这构成”笔记视角”的底层依据：KV Cache 本质上存储的是模型消化上下文后得到的推理摘要，而非原文的向量镜像。修改源头事实，理论上不需要重算整条序列，只需要沿着推理链路更新受影响的推论状态。</p>
+<h2 id="3-两类新原语：KV-Editing-与-KV-Composition"><a href="#3-两类新原语：KV-Editing-与-KV-Composition" class="headerlink" title="3. 两类新原语：KV Editing 与 KV Composition"></a>3. 两类新原语：KV Editing 与 KV Composition</h2><h3 id="3-1-KV-Cache-Editing：局部状态更新，避免全量-Prefill"><a href="#3-1-KV-Cache-Editing：局部状态更新，避免全量-Prefill" class="headerlink" title="3.1 KV Cache Editing：局部状态更新，避免全量 Prefill"></a>3.1 KV Cache Editing：局部状态更新，避免全量 Prefill</h3><p>基于推理笔记视角，缓存编辑的核心目标是：当上下文内某一处原始事实发生变更时，仅对依赖该事实的 K&#x2F;V 表征做增量更新，让事实变更沿着显式推理链路向后传导，以远低于全量 Prefill 的开销，得到和完整重 Prefill 对齐的输出分布。</p>
+<p>该机制存在强约束前提：<strong>上下文必须包含显式 CoT（Chain-of-Thought）推理链路</strong>。</p>
+<ul>
+<li>具备显式 CoT：事实节点、中间推理步骤、最终结论在序列中有序排布，事实与推论之间具备可追踪的依赖关系。<br>举两组对照：<br>① 短序列场景：仅<code>用户城市：北京 → 思考1 → 思考2 → 回答</code>。把 “北京” 改为 “上海”，整条序列都属于依赖链，链上节点必须依次重算，几乎没有收益。<br>② 真实 Agent 长上下文场景：前置有上千 token 的系统提示、历史对话（和城市字段无关），后面才是<code>用户城市：北京 → 思考1 → 思考2 → 回答</code>。全量 Prefill 需要重算全部上千 token；KV Editing 可以直接保留系统提示、历史对话对应的 KV，仅更新城市字段以及后面这条简短推理链，开销可降至全量 Prefill 的 1% 左右；<strong>但依赖链内部的节点仍需要依次重算，无法跳过</strong>。</li>
+<li>无显式 CoT：事实信息会被隐式融合进深层表征，不存在独立、可追溯的推理依赖链路；此时即便修改原始 Token，固化在深层 K&#x2F;V 中的推论也无法定向更新，事实变更无法有效传导，编辑机制直接失效。</li>
+</ul>
+<p>该边界至关重要：KV 编辑天然适配 Agent、带结构化思考链的复杂任务；对于短 Prompt、无独立推理步骤的开放式对话，几乎没有收益。</p>
+<h3 id="3-2-KV-Cache-Composition：RoPE-重定位下的模块化-KV-块拼接"><a href="#3-2-KV-Cache-Composition：RoPE-重定位下的模块化-KV-块拼接" class="headerlink" title="3.2 KV Cache Composition：RoPE 重定位下的模块化 KV 块拼接"></a>3.2 KV Cache Composition：RoPE 重定位下的模块化 KV 块拼接</h3><p>经典 KV 缓存不可拼接的根源：RoPE 旋转位置编码将位置信息编码进 Key 向量，K 的数值和序列位置强绑定。两段独立 Prefill 得到的 KV 块直接拼接，位置编号冲突会破坏注意力内积匹配，造成表征崩坏。</p>
+<p>组合方案的核心操作是 <strong>KV 块的 RoPE 位置偏移重映射</strong>：对一块独立预计算完成的 KV 缓存（可视为一个封装好的技能模块，例如文档检索、计算器调用子流程），统一调整块内所有 Key 的位置编码偏移量，完成位置重编号。重定位后的 KV 块可以直接追加到另一组主 KV 缓存之后，无需重新对该块执行注意力 Prefill。上下文组装的复杂度由 $O(L^2)$ 下降至 $O(L)$ 的缓存拼接操作。</p>
+<blockquote>
+<p>① 直接拼接场景：主对话 KV 位置为 $(\text{pos}&#x3D;1\sim20)$，预计算的「计算器使用说明」KV 原始位置也是 $(\text{pos}&#x3D;1\sim100)$，直接合并会出现位置冲突，注意力计算异常。<br>② RoPE 重定位拼接场景：给计算器块全部 Key 施加偏移 $(\Delta&#x3D;20)$，重映射到 $(\text{pos}&#x3D;21\sim120)$，再拼到主 KV 后面，该技能文本不需要重复 Prefill。</p>
+</blockquote>
+<p>原型在 vLLM 上验证指标：前缀缓存命中率可达 98.5%；p90 首 Token 延迟相比基线下降数十至数百倍；跨 12 个大模型测试，拼接缓存输出与全量 Prefill 输出的 Logit 余弦相似度落在 0.90~0.999 区间，决策一致性较高。</p>
+<h2 id="4-对-AI-Agent-架构的启示"><a href="#4-对-AI-Agent-架构的启示" class="headerlink" title="4. 对 AI Agent 架构的启示"></a>4. 对 AI Agent 架构的启示</h2><p>传统 Agent 的上下文维护范式属于文本驱动：所有记忆、工具返回、环境状态都序列化为字符串，拼接进 Prompt；每次状态变更，都需要重新构造完整文本并 Prefill。该方式实现简单，但在长记忆、高频更新场景下成本难以收敛。</p>
+<p>可编辑、可组合 KV Cache 为下一代 Agent 提供了状态驱动的思路：</p>
+<ul>
+<li>Agent 的长期记忆、工具技能、环境状态不再单纯以文本形式维护，而是封装为独立 KV 缓存模块；</li>
+<li>记忆字段变更时，优先尝试局部编辑关联 KV 状态，而非全量重建；</li>
+<li>技能模块可以离线预 Prefill、持久化，运行时按需做 RoPE 重定位并动态拼接入主上下文；</li>
+<li>上下文组装从”文本拼接 + 重复 Prefill”，转向”KV 状态块的动态编排与增量更新”。</li>
+</ul>
+<p>这一方向有望缓解长上下文 Agent 最突出的首 Token 延迟、显存带宽压力问题。</p>
+<h2 id="5-工程边界与现状说明"><a href="#5-工程边界与现状说明" class="headerlink" title="5. 工程边界与现状说明"></a>5. 工程边界与现状说明</h2><p>必须明确区分研究原型与生产落地：</p>
+<ol>
+<li>当前主流推理引擎（vLLM、SGLang、TensorRT-LLM 等）的生产实现，仍然遵循经典 KV Cache 规则：前缀修改 → 缓存作废，本文前述的编辑、组合能力并未内置；</li>
+<li>该方案依赖 CoT 结构、精准的依赖追踪、RoPE 重映射，存在额外的控制层开销，且在无推理链场景下不生效，通用性有局限；</li>
+<li>相似度指标高不等于结果 100% 等价，在高风险、强事实一致性场景下仍需要谨慎校验；</li>
+<li>它不是对现有 KV Cache 的替代，而是一套拓展原语，用于探索动态上下文、模块化推理的新空间。</li>
+</ol>
+<h2 id="6-结语"><a href="#6-结语" class="headerlink" title="6. 结语"></a>6. 结语</h2><p>KV Cache 的学习很容易停留在”加速解码的工程优化”层面。而”推理笔记”范式的价值，在于把 KV Cache 从一个计算加速部件，上升为模型的外部隐式记忆载体。Transformer 本身并没有强制要求 K&#x2F;V 必须随前缀改动而整体失效；失效只是我们为了工程简洁性选择的实现约束。随着 Agent 应用对动态上下文、可复用推理状态的需求持续增长，可编辑、可组合 KV 技术，很可能成为长上下文 Agent 推理栈中重要的底层组件。</p>
+<h2 id="7-对比表：经典-KV-Cache-vs-可编辑-KV-Cache"><a href="#7-对比表：经典-KV-Cache-vs-可编辑-KV-Cache" class="headerlink" title="7. 对比表：经典 KV Cache vs 可编辑 KV Cache"></a>7. 对比表：经典 KV Cache vs 可编辑 KV Cache</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>经典 KV Cache</th>
+<th>可编辑 &#x2F; 可组合 KV Cache</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>核心定位</td>
+<td>解码加速的工程缓存</td>
+<td>模型外部隐式记忆载体</td>
+</tr>
+<tr>
+<td>信息语义</td>
+<td>原始 Token 的向量镜像</td>
+<td>多层变换后沉淀的推理推论</td>
+</tr>
+<tr>
+<td>前缀修改</td>
+<td>全缓存失效，需完整 Prefill</td>
+<td>沿推理链局部更新受影响 K&#x2F;V</td>
+</tr>
+<tr>
+<td>多段拼接</td>
+<td>位置编号冲突，不可直接拼接</td>
+<td>RoPE 重定位后可直接追加</td>
+</tr>
+<tr>
+<td>组装复杂度</td>
+<td>$O(L^2)$ 重复 Prefill</td>
+<td>$O(L)$ 缓存拼接</td>
+</tr>
+<tr>
+<td>适用前提</td>
+<td>无特殊要求</td>
+<td>需显式 CoT 推理链、精准依赖追踪</td>
+</tr>
+<tr>
+<td>典型收益</td>
+<td>消除逐步解码重复计算</td>
+<td>前缀命中率 98.5%、p90 首 Token 延迟大幅下降</td>
+</tr>
+<tr>
+<td>一致性风险</td>
+<td>无（等价于全量计算）</td>
+<td>Logit 余弦相似度 0.90~0.999，非 100% 等价</td>
+</tr>
+<tr>
+<td>生产成熟度</td>
+<td>主流引擎已内置</td>
+<td>研究原型，尚未进入生产实现</td>
+</tr>
+<tr>
+<td>典型场景</td>
+<td>静态 Prompt、单次对话</td>
+<td>长上下文 Agent、模块化记忆、可复用技能块</td>
+</tr>
+</tbody></table>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://Y3148y.github.io">听雨</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://y3148y.github.io/2026/10/31/kv-cache-token/">https://y3148y.github.io/2026/10/31/kv-cache-token/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://Y3148y.github.io" target="_blank">听雨</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/KV-Cache/">KV Cache</a><a class="post-meta__tags" href="/tags/llm/">llm</a><a class="post-meta__tags" href="/tags/agent/">agent</a></div><div class="post-share"><div class="social-share" data-image="/img/art/vangogh-poppy-field.jpg" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/2026/11/06/post-202611062153/" title="Agent每日一题02：Agent 工具调用总出错？源头定义+执行校验+兜底纠错"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Agent每日一题02：Agent 工具调用总出错？源头定义+执行校验+兜底纠错</div></div><div class="info-2"><div class="info-item-1">1. 面试开场：工具调用为什么总是”翻车”面试官常问：Agent 接入真实业务后，工具调用频繁出错，你会怎么排查和解决？ 先给出结论：问题往往不是模型”不会思考”，而是工具调用环节缺少约束。典型表现有三类：  选错工具：该查订单却调用了退款接口；该用搜索工具却调用了数据库查询。 选错参数：工具选对了，但参数名写错、类型不对、必填项缺失，或把 order_id 填成了用户 ID。 输出格式不匹配：返回的 JSON 不符合工具 schema，多一层嵌套、少一个字段，或把数字写成字符串。  三类问题本质相同：模型对”工具是什么、何时用、怎么用”理解不精确，系统又缺少约束与纠错机制。 答题框架：按”源头定义、执行校验、兜底纠错”三个维度展开——源头定义工具描述与参数 schema，执行环节做校验与规划，最后用重试与降级兜住残余错误。 2. 第一步：先定位，而不是笼统地”调 prompt”面试官追问：你怎么知道问题出在哪？ 答：先建立可观测性。没有数据支撑的调优，往往是在猜。建议在工具调用链路上记录以下字段：    字段 说明 用途    tool_name 模型选择的工具名 统计选错工具...</div></div></div></a><a class="pagination-related" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"><img class="cover" src="/img/art/monet-waterlilies-1906.jpg" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离</div></div><div class="info-2"><div class="info-item-1"> 1. 面试现场：一个看似简单的问题面试官问你：一个大模型微调，先微调了法律知识，又微调了医疗知识，结果法律能力全丢了，加数据混合能解决吗？ 你回答：不能。旧数据拿不到，比例也调不好。 追问：那为什么有的方案能持续学习新任务，还不忘记旧的？ 又答不上来了吧。 这里涉及的就是持续学习中的灾难性遗忘、弹性权重固化（EWC）和参数隔离机制。考的是模型知识保持和参数更新边界的工程理解。 2. 微调到底调了啥：从权重说起先把最基础的问题说清楚：微调调的就是模型的权重（参数），而且是神经网络里那一堆权重矩阵和偏置。 一个神经网络可以看成一张巨大的参数表。以 Transformer 为例，每一层里都有：  注意力层的投影矩阵：W_q、W_k、W_v、W_o，负责把输入映射成 query&#x2F;key&#x2F;value 并做输出投影； 前馈网络（FFN）的两层矩阵：先升维再降维，参数量通常占整层的大头； LayerNorm 的缩放和偏置：γ、β，数量少但影响数值稳定性； 词嵌入矩阵和输出头：词表有多大，这一块就有多宽。  这些矩阵里的每一个数字，都是训练时通过反向传播一点点更新出来的。所...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/2026/11/06/post-202611062153/" title="Agent每日一题02：Agent 工具调用总出错？源头定义+执行校验+兜底纠错"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-11-06</div><div class="info-item-2">Agent每日一题02：Agent 工具调用总出错？源头定义+执行校验+兜底纠错</div></div><div class="info-2"><div class="info-item-1">1. 面试开场：工具调用为什么总是”翻车”面试官常问：Agent 接入真实业务后，工具调用频繁出错，你会怎么排查和解决？ 先给出结论：问题往往不是模型”不会思考”，而是工具调用环节缺少约束。典型表现有三类：  选错工具：该查订单却调用了退款接口；该用搜索工具却调用了数据库查询。 选错参数：工具选对了，但参数名写错、类型不对、必填项缺失，或把 order_id 填成了用户 ID。 输出格式不匹配：返回的 JSON 不符合工具 schema，多一层嵌套、少一个字段，或把数字写成字符串。  三类问题本质相同：模型对”工具是什么、何时用、怎么用”理解不精确，系统又缺少约束与纠错机制。 答题框架：按”源头定义、执行校验、兜底纠错”三个维度展开——源头定义工具描述与参数 schema，执行环节做校验与规划，最后用重试与降级兜住残余错误。 2. 第一步：先定位，而不是笼统地”调 prompt”面试官追问：你怎么知道问题出在哪？ 答：先建立可观测性。没有数据支撑的调优，往往是在猜。建议在工具调用链路上记录以下字段：    字段 说明 用途    tool_name 模型选择的工具名 统计选错工具...</div></div></div></a><a class="pagination-related" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解"><div class="cover" style="background: /img/art/monet-waterlilies-1906.jpg"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-10-27</div><div class="info-item-2">KV Cache详解</div></div><div class="info-2"><div class="info-item-1"> KV Cache一、q、k、v 分别是什么大模型自回归生成时，每一轮都会为新的 token 生成新的 k、v、q，历史的 k、v 直接复用，而 q 本轮用完即丢。 在 Transformer 的注意力机制里，每个 token 的隐状态会经过三组不同的线性投影，得到三个向量 q、k、v：  q（Query，查询）：当前 token「想找什么信息」，用来和历史的 k 做匹配打分。 k（Key，键）：每个 token「能提供什么信息的索引」，被后续 token 的 q 检索。 v（Value，值）：每个 token「实际携带的内容」，按注意力权重加权求和后输出。  用一句话概括：q 是提问，k 是目录，v 是正文。注意力分数 softmax(q·kᵀ/√d) 决定从每个 v 里取多少内容。 二、q、k、v 是怎么得到的q、k、v 三者是同一套流程：当前 token 的隐状态分别乘上三组不同的权重矩阵，就得到三个向量，区别只在于用的是哪一组权重。 设第 t 步新 token 的隐状态为 x_t（维度 d_model），三组投影矩阵分别为 W_q、W_k、W_v（形状 d_model ×...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div></div><div class="comment-wrap"><div><div id="giscus-wrap"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/cat.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">听雨</div><div class="author-info-description">welcome to my little nut</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">26</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">45</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Y3148y"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/Y3148y" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="welcome-content" id="welcome-info"><b><center>🎉 欢迎信息 🎉</center>&emsp;&emsp;欢迎来到我的小站，正在识别你的位置…</b></div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1-%E5%9B%9E%E9%A1%BE%E7%BB%8F%E5%85%B8-KV-Cache-%E5%8F%8A%E5%85%B6%E5%9B%BA%E6%9C%89%E7%BA%A6%E6%9D%9F"><span class="toc-number">1.</span> <span class="toc-text">1. 回顾经典 KV Cache 及其固有约束</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2-%E6%A0%B8%E5%BF%83%E8%A7%82%E6%B5%8B%EF%BC%9A%E5%8E%9F%E5%A7%8B-Token-K-V-%E5%AF%B9%E6%9C%80%E7%BB%88%E5%86%B3%E7%AD%96%E7%9A%84%E8%BE%B9%E9%99%85%E8%B4%A1%E7%8C%AE%E6%9E%81%E4%BD%8E"><span class="toc-number">2.</span> <span class="toc-text">2. 核心观测：原始 Token K&#x2F;V 对最终决策的边际贡献极低</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3-%E4%B8%A4%E7%B1%BB%E6%96%B0%E5%8E%9F%E8%AF%AD%EF%BC%9AKV-Editing-%E4%B8%8E-KV-Composition"><span class="toc-number">3.</span> <span class="toc-text">3. 两类新原语：KV Editing 与 KV Composition</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-KV-Cache-Editing%EF%BC%9A%E5%B1%80%E9%83%A8%E7%8A%B6%E6%80%81%E6%9B%B4%E6%96%B0%EF%BC%8C%E9%81%BF%E5%85%8D%E5%85%A8%E9%87%8F-Prefill"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 KV Cache Editing：局部状态更新，避免全量 Prefill</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-KV-Cache-Composition%EF%BC%9ARoPE-%E9%87%8D%E5%AE%9A%E4%BD%8D%E4%B8%8B%E7%9A%84%E6%A8%A1%E5%9D%97%E5%8C%96-KV-%E5%9D%97%E6%8B%BC%E6%8E%A5"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 KV Cache Composition：RoPE 重定位下的模块化 KV 块拼接</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4-%E5%AF%B9-AI-Agent-%E6%9E%B6%E6%9E%84%E7%9A%84%E5%90%AF%E7%A4%BA"><span class="toc-number">4.</span> <span class="toc-text">4. 对 AI Agent 架构的启示</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5-%E5%B7%A5%E7%A8%8B%E8%BE%B9%E7%95%8C%E4%B8%8E%E7%8E%B0%E7%8A%B6%E8%AF%B4%E6%98%8E"><span class="toc-number">5.</span> <span class="toc-text">5. 工程边界与现状说明</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6-%E7%BB%93%E8%AF%AD"><span class="toc-number">6.</span> <span class="toc-text">6. 结语</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#7-%E5%AF%B9%E6%AF%94%E8%A1%A8%EF%BC%9A%E7%BB%8F%E5%85%B8-KV-Cache-vs-%E5%8F%AF%E7%BC%96%E8%BE%91-KV-Cache"><span class="toc-number">7.</span> <span class="toc-text">7. 对比表：经典 KV Cache vs 可编辑 KV Cache</span></a></li></ol></div></div><div class="card-widget card-post-series"><div class="item-headline"><i class="fa-solid fa-layer-group"></i><span>系列文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/11/06/post-202611062153/" title="Agent每日一题02：Agent 工具调用总出错？源头定义+执行校验+兜底纠错">Agent每日一题02：Agent 工具调用总出错？源头定义+执行校验+兜底纠错</a><time datetime="2026-11-06T21:53:00.000Z" title="发表于 2026-11-06 21:53:00">2026-11-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/31/kv-cache-token/" title="KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态"><img src="/img/art/vangogh-poppy-field.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态"></a><div class="content"><a class="title" href="/2026/10/31/kv-cache-token/" title="KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态">KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态</a><time datetime="2026-10-31T15:43:00.000Z" title="发表于 2026-10-31 15:43:00">2026-10-31</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"></a><div class="content"><a class="title" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离">Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离</a><time datetime="2026-10-27T15:27:00.000Z" title="发表于 2026-10-27 15:27:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="KV Cache详解"></a><div class="content"><a class="title" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解">KV Cache详解</a><time datetime="2026-10-27T10:54:00.000Z" title="发表于 2026-10-27 10:54:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"><img src="/img/art/monet-parasol-1875.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"></a><div class="content"><a class="title" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底">Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底</a><time datetime="2026-10-26T20:41:00.000Z" title="发表于 2026-10-26 20:41:00">2026-10-26</time></div></div></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2026/11/06/post-202611062153/" title="Agent每日一题02：Agent 工具调用总出错？源头定义+执行校验+兜底纠错">Agent每日一题02：Agent 工具调用总出错？源头定义+执行校验+兜底纠错</a><time datetime="2026-11-06T21:53:00.000Z" title="发表于 2026-11-06 21:53:00">2026-11-06</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/31/kv-cache-token/" title="KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态"><img src="/img/art/vangogh-poppy-field.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态"/></a><div class="content"><a class="title" href="/2026/10/31/kv-cache-token/" title="KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态">KV Cache 范式延伸：从静态 Token 快照到可编辑、可组合的隐式推理状态</a><time datetime="2026-10-31T15:43:00.000Z" title="发表于 2026-10-31 15:43:00">2026-10-31</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离"/></a><div class="content"><a class="title" href="/2026/10/27/agent-01-ewc-lora/" title="Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离">Agent每日一题01：大模型持续学习：灾难性遗忘、EWC 与 LoRA 参数隔离</a><time datetime="2026-10-27T15:27:00.000Z" title="发表于 2026-10-27 15:27:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解"><img src="/img/art/monet-waterlilies-1906.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="KV Cache详解"/></a><div class="content"><a class="title" href="/2026/10/27/kv-cache-explained/" title="KV Cache详解">KV Cache详解</a><time datetime="2026-10-27T10:54:00.000Z" title="发表于 2026-10-27 10:54:00">2026-10-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"><img src="/img/art/monet-parasol-1875.jpg" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底"/></a><div class="content"><a class="title" href="/2026/10/26/agent-rag-multiturn/" title="Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底">Agent 每日一题：企业级 RAG 多轮对话如何处理？状态管理 + 缓存复用 + 校验兜底</a><time datetime="2026-10-26T20:41:00.000Z" title="发表于 2026-10-26 20:41:00">2026-10-26</time></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(/img/sunrise.webp);"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By 听雨</span></div><div class="footer_custom_text">你终于看到这里，希望你能天天开心</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.5"></script><script src="/js/main.js?v=5.5.5"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.outerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+    setTimeout(() => URL.revokeObjectURL(url), 30000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        if (typeof svg === 'string') {
+          openSvgInNewTab({ source: svg, initViewBox })
+          return
+        }
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+
+    // Avoid binding multiple times on themeChange/pjax
+    if (wrap.__mermaidGestureBound) return
+    wrap.__mermaidGestureBound = true
+
+    // Helper: map client (viewport) coordinate -> viewBox coordinate
+    const clientToViewBox = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect()
+      const vb = wrap.__mermaidCurViewBox || getSvgViewBox(svg)
+      const x = vb[0] + (clientX - rect.left) * (vb[2] / rect.width)
+      const y = vb[1] + (clientY - rect.top) * (vb[3] / rect.height)
+      return { x, y, rect, vb }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      startCenter: null
+    }
+
+    const clampVb = vb => {
+      const init = wrap.__mermaidInitViewBox || vb
+      const minW = init[2] * 0.1
+      const maxW = init[2] * 10
+      const minH = init[3] * 0.1
+      const maxH = init[3] * 10
+      vb[2] = clamp(vb[2], minW, maxW)
+      vb[3] = clamp(vb[3], minH, maxH)
+      return vb
+    }
+
+    const setCurVb = vb => {
+      vb = clampVb(vb)
+      wrap.__mermaidCurViewBox = vb
+      setSvgViewBox(svg, vb)
+    }
+
+    const onPointerDown = e => {
+      // Allow only primary button for mouse
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      if (state.pointers.size === 1) {
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        state.startCenter = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+      // Pan with 1 pointer
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = [...state.pointers.values()][0]
+        const prev = { x: e.clientX - e.movementX, y: e.clientY - e.movementY }
+        // movementX/Y unreliable on touch, compute from stored last position
+        const last = wrap.__mermaidLastSinglePointer || p
+        const dxClient = p.x - last.x
+        const dyClient = p.y - last.y
+        wrap.__mermaidLastSinglePointer = p
+
+        const { rect } = clientToViewBox(p.x, p.y)
+        const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+        const dx = dxClient * (vb[2] / rect.width)
+        const dy = dyClient * (vb[3] / rect.height)
+        setCurVb([vb[0] - dx, vb[1] - dy, vb[2], vb[3]])
+        return
+      }
+
+      // Pinch zoom with 2 pointers
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist // dist bigger => zoom in (viewBox smaller)
+
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const centerClient = { x: cx, y: cy }
+
+        const pxy = clientToViewBox(centerClient.x, centerClient.y)
+        const cpx = pxy.x
+        const cpy = pxy.y
+
+        const vb = zoomAtPoint(state.startVb, factor, cpx, cpy)
+        setCurVb(vb)
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+        state.startCenter = null
+        wrap.__mermaidLastSinglePointer = null
+      } else if (state.pointers.size === 1) {
+        // reset single pointer baseline to avoid jump
+        wrap.__mermaidLastSinglePointer = [...state.pointers.values()][0]
+      }
+    }
+
+    // Wheel zoom (mouse/trackpad)
+    const onWheel = e => {
+      // ctrlKey on mac trackpad pinch; we treat both as zoom
+      e.preventDefault()
+      const delta = e.deltaY
+      const zoomFactor = delta > 0 ? 1.1 : 0.9
+      const { x, y } = clientToViewBox(e.clientX, e.clientY)
+      const vb = (wrap.__mermaidCurViewBox || getSvgViewBox(svg)).slice()
+      setCurVb(zoomAtPoint(vb, zoomFactor, x, y))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (!init) return
+      wrap.__mermaidCurViewBox = init.slice()
+      setSvgViewBox(svg, init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown)
+    svg.addEventListener('pointermove', onPointerMove)
+    svg.addEventListener('pointerup', onPointerUpOrCancel)
+    svg.addEventListener('pointercancel', onPointerUpOrCancel)
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    svg.addEventListener('dblclick', onDblClick)
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+
+      // Clear old render (themeChange/pjax will rerun)
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      item.__mermaidGestureBound = false
+
+      const config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+
+      // mermaid v9 and v10 compatibility
+      typeof renderFn === 'string' ? renderMermaid(renderFn) : renderFn.then(({ svg }) => renderMermaid(svg))
+    })
+  }
+
+  const codeToMermaid = () => {
+    const codeMermaidEle = document.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    if (true) codeToMermaid()
+    const $mermaid = document.querySelectorAll('#article-container .mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('/js/libs/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const getGiscusTheme = theme => theme === 'dark' ? 'dark' : 'light'
+
+  const createScriptElement = config => {
+    const ele = document.createElement('script')
+    Object.entries(config).forEach(([key, value]) => {
+      ele.setAttribute(key, value)
+    })
+    return ele
+  }
+
+  const loadGiscus = (el = document, key) => {
+    const mappingConfig = isShuoshuo
+      ? { 'data-mapping': 'specific', 'data-term': key }
+      : { 'data-mapping': (option && option['data-mapping']) || 'pathname' }
+
+    const giscusConfig = {
+      src: 'https://giscus.app/client.js',
+      'data-repo': 'Y3148y/my-blog-comments',
+      'data-repo-id': 'R_kgDOTV5zww',
+      'data-category-id': 'DIC_kwDOTV5zw84DBBql',
+      'data-theme': getGiscusTheme(document.documentElement.getAttribute('data-theme')),
+      'data-reactions-enabled': '1',
+      crossorigin: 'anonymous',
+      async: true,
+      ...option,
+      ...mappingConfig
+    }
+
+    const scriptElement = createScriptElement(giscusConfig)
+
+    el.querySelector('#giscus-wrap').appendChild(scriptElement)
+
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGiscus = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+  }
+
+  const changeGiscusTheme = theme => {
+    const iframe = document.querySelector('#giscus-wrap iframe')
+    if (iframe) {
+      const message = {
+        giscus: {
+          setConfig: {
+            theme: getGiscusTheme(theme)
+          }
+        }
+      }
+      iframe.contentWindow.postMessage(message, 'https://giscus.app')
+    }
+  }
+
+  btf.addGlobalFn('themeChange', changeGiscusTheme, 'giscus')
+
+  if (isShuoshuo) {
+    'Giscus' === 'Giscus'
+      ? window.shuoshuoComment = { loadComment: loadGiscus }
+      : window.loadOtherComment = loadGiscus
+    return
+  }
+
+  if ('Giscus' === 'Giscus' || !false) {
+    if (false) btf.loadComment(document.getElementById('giscus-wrap'), loadGiscus)
+    else loadGiscus()
+  } else {
+    window.loadOtherComment = loadGiscus
+  }
+})()</script></div><script defer src="/js/welcome.js"></script><script async src="/js/title.js"></script><script defer src="/js/global-player.js"></script><script defer src="/js/art-viewer.js"></script><script defer src="/js/painting-engine.js"></script><script defer src="/js/paint-scroll-transition.js?v=1"></script><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-nest.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script src="https://cdn.jsdelivr.net/npm/pjax@0.2.8/pjax.min.js" defer="defer"></script><script>document.addEventListener('DOMContentLoaded', () => {
+  const pjaxSelectors = ["head > title","#config-diff","#body-wrap","#rightside-config-hide","#rightside-config-show",".js-pjax"]
+
+  window.pjax = new Pjax({
+    elements: 'a:not([target="_blank"])',
+    selectors: pjaxSelectors,
+    cacheBust: false,
+    analytics: false,
+    scrollRestoration: false
+  })
+
+  const triggerPjaxFn = (val) => {
+    if (!val) return
+    Object.values(val).forEach(fn => {
+      try {
+        fn()
+      } catch (err) {
+        console.debug('Pjax callback failed:', err)
+      }
+    })
+  }
+
+  document.addEventListener('pjax:send', () => {
+    // removeEventListener
+    btf.removeGlobalFnEvent('pjaxSendOnce')
+    btf.removeGlobalFnEvent('themeChange')
+
+    // reset readmode
+    const $bodyClassList = document.body.classList
+    if ($bodyClassList.contains('read-mode')) $bodyClassList.remove('read-mode')
+
+    triggerPjaxFn(window.globalFn.pjaxSend)
+  })
+
+  document.addEventListener('pjax:complete', () => {
+    btf.removeGlobalFnEvent('pjaxCompleteOnce')
+    document.querySelectorAll('script[data-pjax]').forEach(item => {
+      const newScript = document.createElement('script')
+      const content = item.text || item.textContent || item.innerHTML || ""
+      Array.from(item.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value))
+      newScript.appendChild(document.createTextNode(content))
+      item.parentNode.replaceChild(newScript, item)
+    })
+
+    triggerPjaxFn(window.globalFn.pjaxComplete)
+  })
+
+  document.addEventListener('pjax:error', e => {
+    if (e.request.status === 404) {
+      false
+        ? pjax.loadUrl('/404.html')
+        : window.location.href = e.request.responseURL
+    }
+  })
+})</script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.5"></script></div></div><script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"pluginRootPath":"live2dw/","pluginJsPath":"lib/","pluginModelPath":"assets/","tagMode":false,"debug":false,"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"right","width":150,"height":300},"mobile":{"show":true},"react":{"opacity":1,"shadow":true},"log":false});</script></body></html>
